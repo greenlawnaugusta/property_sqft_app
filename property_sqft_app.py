@@ -18,7 +18,6 @@ import json
 import logging
 import cv2
 import numpy as np
-from IPython.display import Image, display
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -126,8 +125,8 @@ def calculate_turf_area(lat, lon):
         with open(street_view_image_path, 'wb') as f:
             f.write(response_street_view.content)
 
-        # Display the Google Street View image
-        display(Image(filename=street_view_image_path))
+        # Log the street view image path
+        logging.info(f"Street view image saved at: {street_view_image_path}")
 
         return (f"{turf_sq_ft:.2f} square feet\n"
                 f"Estimated price for Recurring Maintenance: ${recurring_maintenance_price:.2f}\n"
