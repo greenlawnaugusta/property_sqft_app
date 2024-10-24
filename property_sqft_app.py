@@ -89,7 +89,7 @@ def calculate_turf_area(lat, lon):
         if turf_sq_ft <= 4000:
             price = 50
         else:
-            price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
+            price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.1
 
         # Adjust price based on service type
         recurring_maintenance_price = price
@@ -100,7 +100,7 @@ def calculate_turf_area(lat, lon):
         if turf_sq_ft <= 4000:
             weed_control_price = 50
         else:
-            weed_control_price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
+            weed_control_price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.1
 
         weed_control_1_price = weed_control_price
         weed_control_2_price = weed_control_1_price * 1.10
