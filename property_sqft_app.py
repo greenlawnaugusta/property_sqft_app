@@ -8,6 +8,7 @@ Original file is located at
 """
 
 import subprocess
+import os
 
 # Install required packages
 subprocess.run(["pip", "install", "cartopy", "requests", "opencv-python", "numpy"])
@@ -15,7 +16,6 @@ subprocess.run(["pip", "install", "cartopy", "requests", "opencv-python", "numpy
 import requests
 import json
 import logging
-import os
 import cv2
 import numpy as np
 from IPython.display import Image, display
@@ -141,7 +141,7 @@ def calculate_turf_area(lat, lon):
         return f"Error fetching satellite image from Mapbox: {str(e)}"
 
 if __name__ == '__main__':
-    address = input("Enter the home address: ")
+    address = os.getenv("ADDRESS", "4496 Galway Drive, Evans, GA 30809")  # Use environment variable or default address
     lat, lon = get_lat_lon(address)
     if lat is not None and lon is not None:
         turf_sq_ft = calculate_turf_area(lat, lon)
