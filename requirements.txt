@@ -2,4 +2,3 @@ requests
 opencv-python
 numpy
 cartopy
-ipython
