@@ -2,3 +2,5 @@ requests
 opencv-python
 numpy
 cartopy
+Flask
+gunicorn
