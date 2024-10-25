@@ -81,6 +81,40 @@ def calculate_turf_area(lat, lon):
         logging.error(f"Error fetching satellite image from Mapbox: {str(e)}")
         return f"Error fetching satellite image from Mapbox: {str(e)}"
 
+# Function to calculate pricing based on turf area
+def calculate_pricing(turf_sq_ft):
+    # Calculate price based on turf square footage
+    if turf_sq_ft <= 4000:
+        price = 50
+    else:
+        price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.1
+
+    # Adjust price based on service type
+    recurring_maintenance_price = price
+    one_time_mow_price = recurring_maintenance_price * 1.15
+    full_service_price = recurring_maintenance_price * 1.25
+
+    # Calculate weed control prices
+    if turf_sq_ft <= 4000:
+        weed_control_price = 50
+    else:
+        weed_control_price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.1
+
+    weed_control_1_price = weed_control_price
+    weed_control_2_price = weed_control_1_price * 1.10
+    weed_control_3_price = weed_control_1_price * 1.15
+
+    pricing_info = {
+        "recurring_maintenance_price": recurring_maintenance_price,
+        "one_time_mow_price": one_time_mow_price,
+        "full_service_price": full_service_price,
+        "weed_control_1_price": weed_control_1_price,
+        "weed_control_2_price": weed_control_2_price,
+        "weed_control_3_price": weed_control_3_price
+    }
+
+    return pricing_info
+
 # Define an API endpoint to receive address data
 @app.route('/submit-address', methods=['POST'])
 def submit_address():
@@ -102,7 +136,15 @@ def submit_address():
         if isinstance(turf_sq_ft, str):
             return jsonify({'error': turf_sq_ft}), 500
 
-        return jsonify({'turf_area_sq_ft': turf_sq_ft}), 200
+        # Calculate pricing
+        pricing_info = calculate_pricing(turf_sq_ft)
+
+        response = {
+            'turf_area_sq_ft': turf_sq_ft,
+            'pricing': pricing_info
+        }
+
+        return jsonify(response), 200
 
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
@@ -110,4 +152,5 @@ def submit_address():
 
 if __name__ == '__main__':
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
