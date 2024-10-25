@@ -10,7 +10,7 @@ import numpy as np
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set Mapbox tokens
-greenlawnaugusta_mapbox_token = 'YOUR_MAPBOX_TOKEN_HERE'
+greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 
 # Create the Flask app
 app = Flask(__name__)
@@ -20,7 +20,7 @@ CORS(app)
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
-    google_maps_api_key = 'YOUR_GOOGLE_MAPS_API_KEY_HERE'
+    google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
     geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}'
     response = requests.get(geocoding_endpoint)
     if response.status_code == 200:
