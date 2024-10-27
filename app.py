@@ -17,8 +17,8 @@ gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6
 # Create the Flask app
 app = Flask(__name__)
 
-# Enable CORS for your app with specific origins to resolve CORS issues
-CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com", "*"]}})
+# Enable CORS for your app with all origins to resolve CORS issues (testing phase)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Define a simple root endpoint
 @app.route('/')
@@ -28,8 +28,9 @@ def home():
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
     geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}'
-    response = requests.get(geocoding_endpoint)
-    if response.status_code == 200:
+    try:
+        response = requests.get(geocoding_endpoint)
+        response.raise_for_status()
         geocode_data = response.json()
         if geocode_data['status'] == 'OK':
             location = geocode_data['results'][0]['geometry']['location']
@@ -37,8 +38,8 @@ def get_lat_lon(address):
         else:
             logging.warning(f"Geocoding failed for address {address}: {geocode_data['status']}")
             return None, None
-    else:
-        logging.error(f"Failed to fetch geocode data for address {address}: {response.status_code}")
+    except requests.RequestException as e:
+        logging.error(f"Failed to fetch geocode data for address {address}: {str(e)}")
         return None, None
 
 # Function to calculate turf area using OpenCV and Mapbox Satellite Imagery
@@ -137,13 +138,14 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         }
     }
 
-    response = requests.post(url, headers=headers, json=contact_data)
-    if response.status_code in [200, 201]:
+    try:
+        response = requests.post(url, headers=headers, json=contact_data)
+        response.raise_for_status()
         contact = response.json()
         logging.info("Successfully created or updated contact in GoHighLevel.")
         return contact["contact"]["id"]
-    else:
-        logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
+    except requests.RequestException as e:
+        logging.error(f"Failed to create or update contact in GoHighLevel: {str(e)}")
         return None
 
 # Define an API endpoint to receive address and user data
