@@ -143,7 +143,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         response.raise_for_status()
         contact = response.json()
         logging.info("Successfully created or updated contact in GoHighLevel.")
-        return contact["contact"]["id"]
+        return contact.get("contact", {}).get("id")
     except requests.RequestException as e:
         logging.error(f"Failed to create or update contact in GoHighLevel: {str(e)}")
         return None
