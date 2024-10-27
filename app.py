@@ -9,15 +9,20 @@ import numpy as np
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set Mapbox tokens and Google API key via environment variables for security
-greenlawnaugusta_mapbox_token = os.getenv('GREENLAWN_MAPBOX_TOKEN')
-google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY')
+# Set API keys
+greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
+google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 
 # Create the Flask app
 app = Flask(__name__)
 
 # Enable CORS for your app
 CORS(app)
+
+# Define a simple root endpoint
+@app.route('/')
+def home():
+    return "Welcome to the Property Turf Area API", 200
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
@@ -79,61 +84,36 @@ def calculate_turf_area(lat, lon):
         correction_factor = 2.5  # Adjusted factor based on further testing and calibration
         turf_sq_ft = turf_area * pixel_area * correction_factor
 
+        logging.info(f"Turf area in square feet: {turf_sq_ft}")
         return turf_sq_ft
 
     except requests.exceptions.RequestException as e:
         logging.error(f"Error fetching satellite image from Mapbox: {str(e)}")
         return f"Error fetching satellite image from Mapbox: {str(e)}"
 
-# Function to calculate pricing based on turf area
-def calculate_pricing(turf_sq_ft):
-    if turf_sq_ft <= 4000:
-        price = 50
-    else:
-        price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.1
-
-    recurring_maintenance_price = price
-    one_time_mow_price = recurring_maintenance_price * 1.15
-    full_service_price = recurring_maintenance_price * 1.25
-
-    weed_control_1_price = price
-    weed_control_2_price = weed_control_1_price * 1.10
-    weed_control_3_price = weed_control_1_price * 1.15
-
-    pricing_info = {
-        "recurring_maintenance_price": recurring_maintenance_price,
-        "one_time_mow_price": one_time_mow_price,
-        "full_service_price": full_service_price,
-        "weed_control_1_price": weed_control_1_price,
-        "weed_control_2_price": weed_control_2_price,
-        "weed_control_3_price": weed_control_3_price
-    }
-
-    return pricing_info
-
 # Define an API endpoint to receive address data
 @app.route('/submit-address', methods=['POST'])
 def submit_address():
     try:
+        # Get JSON data from request
         data = request.get_json()
         address = data.get('address')
 
         if not address:
             return jsonify({'error': 'Address is required'}), 400
 
+        # Get latitude and longitude
         lat, lon = get_lat_lon(address)
         if lat is None or lon is None:
             return jsonify({'error': 'Failed to retrieve latitude and longitude'}), 500
 
+        # Calculate turf area
         turf_sq_ft = calculate_turf_area(lat, lon)
         if isinstance(turf_sq_ft, str):
             return jsonify({'error': turf_sq_ft}), 500
 
-        pricing_info = calculate_pricing(turf_sq_ft)
-
         response = {
-            'turf_area_sq_ft': turf_sq_ft,
-            'pricing': pricing_info
+            'turf_area_sq_ft': turf_sq_ft
         }
 
         return jsonify(response), 200
@@ -143,5 +123,6 @@ def submit_address():
         return jsonify({'error': 'An error occurred while processing the request'}), 500
 
 if __name__ == '__main__':
+    # Run the Flask app
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
