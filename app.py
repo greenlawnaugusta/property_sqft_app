@@ -17,8 +17,8 @@ gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6
 # Create the Flask app
 app = Flask(__name__)
 
-# Enable CORS for your app
-CORS(app)
+# Enable CORS for your app with specific origins to resolve CORS issues
+CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com", "*"]}})
 
 # Define a simple root endpoint
 @app.route('/')
