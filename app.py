@@ -16,7 +16,7 @@ gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5
 
 # Create the Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
@@ -195,6 +195,13 @@ def submit_address():
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
         return jsonify({'error': 'An error occurred while processing the request'}), 500
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
 
 if __name__ == '__main__':
     # Run the Flask app
