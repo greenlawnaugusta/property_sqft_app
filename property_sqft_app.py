@@ -8,7 +8,7 @@ from flask_cors import CORS
 import os
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set API keys
 greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
@@ -17,7 +17,7 @@ gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6
 
 # Create the Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/submit-address": {"origins": ["https://api.leadconnectorhq.com"]}})
+CORS(app, resources={r"/.*": {"origins": "*"}})
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
@@ -120,6 +120,14 @@ def submit_address():
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
         return jsonify({'error': f'An error occurred while processing the request: {str(e)}'}), 500
+
+# Add CORS headers to every response
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
