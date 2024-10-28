@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, redirect 
 import requests
 import json
 import logging
@@ -50,11 +50,11 @@ def calculate_pricing(turf_sq_ft):
         price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
     
     pricing_info = {
-        "recurring_maintenance_price": price,
-        "one_time_mow_price": price * 1.15,
-        "weed_control_1_price": price * 0.8,  # Example additional field
-        "weed_control_2_price": price * 0.9,  # Example additional field
-        "turf_sq_ft": turf_sq_ft  # Adding turf square footage
+        "recurring_maintenance_price": str(price),
+        "one_time_mow_price": str(price * 1.15),
+        "weed_control_1_price": str(price * 0.8),
+        "weed_control_2_price": str(price * 0.9),
+        "turf_sq_ft": str(turf_sq_ft)
     }
     return pricing_info
 
@@ -74,11 +74,11 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         "latitude": lat,
         "longitude": lon,
         "customField": {
-            "contact.recurring_maintenance_price": pricing_info["recurring_maintenance_price"],
-            "contact.one_time_mow_price": pricing_info["one_time_mow_price"],
-            "contact.weed_control_1_price": pricing_info["weed_control_1_price"],
-            "contact.weed_control_2_price": pricing_info["weed_control_2_price"],
-            "contact.turf_sq_ft": pricing_info["turf_sq_ft"]
+            "recurring_maintenance_price": pricing_info["recurring_maintenance_price"],
+            "one_time_mow_price": pricing_info["one_time_mow_price"],
+            "weed_control_1_price": pricing_info["weed_control_1_price"],
+            "weed_control_2_price": pricing_info["weed_control_2_price"],
+            "turf_sq_ft": pricing_info["turf_sq_ft"]
         }
     }
 
