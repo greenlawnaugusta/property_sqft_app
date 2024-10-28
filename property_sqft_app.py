@@ -97,8 +97,8 @@ def submit_address():
         if lat is None or lon is None:
             return jsonify({'error': 'Failed to retrieve latitude and longitude'}), 500
 
-        # Calculate turf area and pricing
-        turf_sq_ft = 4000  # Placeholder for turf calculation
+        # Calculate turf area (for simplicity, using a placeholder value)
+        turf_sq_ft = 5000  # Placeholder value; you would replace this with the actual calculation
         pricing_info = calculate_pricing(turf_sq_ft)
 
         # Create or update GoHighLevel contact
@@ -106,9 +106,9 @@ def submit_address():
         if not contact_id:
             return jsonify({'error': 'Failed to create or update contact in GoHighLevel'}), 500
 
-        # Redirect the user to the pricing funnel page with parameters
-        redirect_url = f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}&turf_sq_ft={turf_sq_ft}&recurring_price={pricing_info['recurring_maintenance_price']}&one_time_price={pricing_info['one_time_mow_price']}&full_service_price={pricing_info['full_service_price']}"
-        return jsonify({'redirect_url': redirect_url}), 200
+        # Redirect URL for pricing funnel page
+        redirect_url = f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}&turf_area={turf_sq_ft}&recurring_price={pricing_info['recurring_maintenance_price']}&one_time_price={pricing_info['one_time_mow_price']}&full_service_price={pricing_info['full_service_price']}"
+        return jsonify({'success': 'Address processed successfully', 'redirect_url': redirect_url}), 200
 
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
