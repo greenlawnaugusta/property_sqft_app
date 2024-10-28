@@ -51,7 +51,10 @@ def calculate_pricing(turf_sq_ft):
     
     pricing_info = {
         "recurring_maintenance_price": price,
-        "one_time_mow_price": price * 1.15
+        "one_time_mow_price": price * 1.15,
+        "weed_control_1_price": price * 0.8,  # Example additional field
+        "weed_control_2_price": price * 0.9,  # Example additional field
+        "turf_sq_ft": turf_sq_ft  # Adding turf square footage
     }
     return pricing_info
 
@@ -72,7 +75,10 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         "longitude": lon,
         "customField": {
             "contact.recurring_maintenance_price": pricing_info["recurring_maintenance_price"],
-            "contact.one_time_mow_price": pricing_info["one_time_mow_price"]
+            "contact.one_time_mow_price": pricing_info["one_time_mow_price"],
+            "contact.weed_control_1_price": pricing_info["weed_control_1_price"],
+            "contact.weed_control_2_price": pricing_info["weed_control_2_price"],
+            "contact.turf_sq_ft": pricing_info["turf_sq_ft"]
         }
     }
 
