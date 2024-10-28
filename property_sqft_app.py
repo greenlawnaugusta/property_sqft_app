@@ -29,10 +29,11 @@ def get_lat_lon(address):
             location = geocode_data['results'][0]['geometry']['location']
             return location['lat'], location['lng']
         else:
-            logging.warning(f"Geocoding failed for address {address}: {geocode_data['status']}")
+            error_message = geocode_data.get('error_message', 'No detailed error message provided')
+            logging.warning(f"Geocoding failed for address {address}: {geocode_data['status']} - {error_message}")
             return None, None
     else:
-        logging.error(f"Failed to fetch geocode data for address {address}: {response.status_code}")
+        logging.error(f"Failed to fetch geocode data for address {address}: {response.status_code} - {response.text}")
         return None, None
 
 # Function to calculate turf area using placeholder implementation
@@ -101,7 +102,7 @@ def submit_address():
         # Get latitude and longitude
         lat, lon = get_lat_lon(address)
         if lat is None or lon is None:
-            return jsonify({'error': 'Failed to retrieve latitude and longitude'}), 500
+            return jsonify({'error': 'Failed to retrieve latitude and longitude. Please check the address or contact support.'}), 500
 
         # Calculate turf area and pricing
         turf_sq_ft = calculate_turf_area(lat, lon)
@@ -118,7 +119,7 @@ def submit_address():
 
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
-        return jsonify({'error': 'An error occurred while processing the request'}), 500
+        return jsonify({'error': f'An error occurred while processing the request: {str(e)}'}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
