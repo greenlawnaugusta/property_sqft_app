@@ -71,71 +71,30 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         "email": email,
         "phone": phone,
         "address1": address,
-        "latitude": lat,
-        "longitude": lon,
+        "latitude": str(lat),
+        "longitude": str(lon),
         "customField": {
-            "recurring_maintenance_price": pricing_info["recurring_maintenance_price"],
-            "one_time_mow_price": pricing_info["one_time_mow_price"],
-            "weed_control_1_price": pricing_info["weed_control_1_price"],
-            "weed_control_2_price": pricing_info["weed_control_2_price"],
-            "turf_sq_ft": pricing_info["turf_sq_ft"]
+            "Recurring Maintenance Price": pricing_info["recurring_maintenance_price"],
+            "One Time Mow Price": pricing_info["one_time_mow_price"],
+            "Weed Control 1 Price": pricing_info["weed_control_1_price"],
+            "Weed Control 2 Price": pricing_info["weed_control_2_price"],
+            "Turf Sq Ft": pricing_info["turf_sq_ft"]
         }
     }
 
+    # Debugging: Log the contact data payload
+    logging.debug(f"Sending contact data to GoHighLevel: {json.dumps(contact_data, indent=2)}")
+
     response = requests.post(url, headers=headers, json=contact_data)
+    
+    # Log response details for debugging
+    logging.debug(f"Response status code: {response.status_code}")
+    logging.debug(f"Response headers: {response.headers}")
+    logging.debug(f"Response text: {response.text}")
+
     if response.status_code in [200, 201]:
         logging.info("Successfully created or updated contact in GoHighLevel with pricing information.")
         return response.json().get("contact", {}).get("id")
     else:
         logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
-        return None
-
-# Define an API endpoint to receive address data
-@app.route('/submit-address', methods=['POST'])
-def submit_address():
-    try:
-        # Get JSON data from request
-        data = request.get_json()
-        address = data.get('address')
-        first_name = data.get('first_name')
-        last_name = data.get('last_name')
-        email = data.get('email')
-        phone = data.get('phone')
-
-        if not all([address, first_name, last_name, email, phone]):
-            return jsonify({'error': 'All fields are required'}), 400
-
-        # Get latitude and longitude
-        lat, lon = get_lat_lon(address)
-        if lat is None or lon is None:
-            return jsonify({'error': 'Failed to retrieve latitude and longitude. Please check the address or contact support.'}), 500
-
-        # Calculate turf area and pricing
-        turf_sq_ft = calculate_turf_area(lat, lon)
-        pricing_info = calculate_pricing(turf_sq_ft)
-
-        # Create or update the contact in GoHighLevel
-        contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
-        if not contact_id:
-            return jsonify({'error': 'Failed to create or update contact'}), 500
-
-        # Redirect to funnel page with pricing information
-        redirect_url = f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}&price={pricing_info['recurring_maintenance_price']}"
-        return redirect(redirect_url)
-
-    except Exception as e:
-        logging.error(f"Error processing request: {str(e)}")
-        return jsonify({'error': f'An error occurred while processing the request: {str(e)}'}), 500
-
-# Add CORS headers to every response
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+       
