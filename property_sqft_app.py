@@ -71,8 +71,8 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         "latitude": lat,
         "longitude": lon,
         "customField": {
-            "recurring_maintenance_price": pricing_info["recurring_maintenance_price"],
-            "one_time_mow_price": pricing_info["one_time_mow_price"]
+            "contact.recurring_maintenance_price": pricing_info["recurring_maintenance_price"],
+            "contact.one_time_mow_price": pricing_info["one_time_mow_price"]
         }
     }
 
