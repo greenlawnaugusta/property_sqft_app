@@ -16,7 +16,7 @@ gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5
 
 # Create the Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
