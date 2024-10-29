@@ -191,7 +191,7 @@ def calculate():
                 "turf_sq_ft": turf_sq_ft,
                 "pricing_info": pricing_info,
                 "contact_id": contact_id,
-                "redirect_url": "https://pricing.greenlawnaugusta.com/pricing-page"
+                "redirect_url": f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}"
             })
     else:
         return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
