@@ -6,6 +6,7 @@ import os
 import cv2
 import numpy as np
 from flask_cors import CORS
+import csv
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -119,7 +120,8 @@ def calculate_pricing(turf_sq_ft):
         "full_service_biweekly_price": full_service_biweekly_price,
         "weed_control_1_price": weed_control_1_price,
         "weed_control_2_price": weed_control_2_price,
-        "weed_control_3_price": weed_control_3_price
+        "weed_control_3_price": weed_control_3_price,
+        "turf_sq_ft": turf_sq_ft
     }
 
     logging.info(f"Calculated pricing: {json.dumps(pricing_info, indent=4)}")
@@ -138,15 +140,16 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         "email": email,
         "phone": phone,
         "address1": address,
-        "latitude": lat,
-        "longitude": lon,
+        "latitude": str(lat),
+        "longitude": str(lon),
         "customField": {
-            "weed_control_1_price": pricing_info["weed_control_1_price"],
-            "weed_control_2_price": pricing_info["weed_control_2_price"],
-            "weed_control_3_price": pricing_info["weed_control_3_price"],
-            "recurring_maintenance_price": pricing_info["recurring_maintenance_biweekly_price"],
-            "one_time_mow_price": pricing_info["one_time_mow_price"],
-            "full_service_price": pricing_info["full_service_biweekly_price"]
+            "weed_control_1_price": str(pricing_info["weed_control_1_price"]),
+            "weed_control_2_price": str(pricing_info["weed_control_2_price"]),
+            "weed_control_3_price": str(pricing_info["weed_control_3_price"]),
+            "recurring_maintenance_price": str(pricing_info["recurring_maintenance_biweekly_price"]),
+            "one_time_mow_price": str(pricing_info["one_time_mow_price"]),
+            "full_service_price": str(pricing_info["full_service_biweekly_price"]),
+            "turf_sq_ft": str(pricing_info["turf_sq_ft"])
         }
     }
 
@@ -154,7 +157,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
     if response.status_code in [200, 201]:
         contact = response.json()
         logging.info("Successfully created or updated contact in GoHighLevel with pricing information.")
-        return contact["contact"]["id"]
+        return contact.get("contact", {}).get("id")
     else:
         logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
         # Debugging output
@@ -162,10 +165,45 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         logging.debug(f"Response received: {response.text}")
         return None
 
+# Function to save data to CSV
+def save_to_csv(first_name, last_name, email, phone, address, lat, lon, pricing_info, csv_filename="user_data.csv"):
+    try:
+        headers = ["first_name", "last_name", "email", "phone", "address", "latitude", "longitude", "recurring_maintenance_weekly_price",
+                   "recurring_maintenance_biweekly_price", "one_time_mow_price", "full_service_weekly_price", 
+                   "full_service_biweekly_price", "weed_control_1_price", "weed_control_2_price", "weed_control_3_price", "turf_sq_ft"]
+
+        write_header = not os.path.isfile(csv_filename)
+        with open(csv_filename, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            if write_header:
+                writer.writerow(headers)
+            writer.writerow([
+                first_name, last_name, email, phone, address, lat, lon,
+                pricing_info["recurring_maintenance_weekly_price"],
+                pricing_info["recurring_maintenance_biweekly_price"],
+                pricing_info["one_time_mow_price"],
+                pricing_info["full_service_weekly_price"],
+                pricing_info["full_service_biweekly_price"],
+                pricing_info["weed_control_1_price"],
+                pricing_info["weed_control_2_price"],
+                pricing_info["weed_control_3_price"],
+                pricing_info["turf_sq_ft"]
+            ])
+        logging.info("Successfully saved data to CSV.")
+    except Exception as e:
+        logging.error(f"Error saving data to CSV: {str(e)}")
+
 # Flask route to handle turf area and pricing calculation
 @app.route('/calculate', methods=['POST'])
 def calculate():
-    data = request.json
+    logging.info(f"Received Content-Type: {request.content_type}")
+
+    if request.content_type == 'application/json':
+        data = request.json
+    else:
+        # Handle form-encoded data
+        data = request.form
+
     address = data.get('address')
     first_name = data.get('first_name')
     last_name = data.get('last_name')
@@ -179,7 +217,10 @@ def calculate():
             return jsonify({"error": turf_sq_ft}), 400
         else:
             pricing_info = calculate_pricing(turf_sq_ft)
+            save_to_csv(first_name, last_name, email, phone, address, lat, lon, pricing_info)  # Save to CSV
             contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
+            if contact_id:
+                logging.info(f"GoHighLevel Contact ID: {contact_id}")
             return jsonify({
                 "turf_sq_ft": turf_sq_ft,
                 "pricing_info": pricing_info,
