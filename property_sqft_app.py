@@ -158,4 +158,42 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         logging.info("Successfully created or updated contact in GoHighLevel with pricing information.")
         return contact.get("contact", {}).get("id")
     else:
-        logging.error(f"Failed to create or update
+        logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
+        # Debugging output
+        logging.debug(f"Payload sent: {json.dumps(contact_data, indent=4)}")
+        logging.debug(f"Response received: {response.text}")
+        return None
+
+# Flask route to handle turf area and pricing calculation
+@app.route('/calculate', methods=['POST'])
+def calculate():
+    if request.content_type == 'application/json':
+        data = request.json
+    else:
+        # Handle form-encoded data
+        data = request.form
+
+    address = data.get('address')
+    first_name = data.get('first_name')
+    last_name = data.get('last_name')
+    email = data.get('email')
+    phone = data.get('phone')
+
+    lat, lon = get_lat_lon(address)
+    if lat is not None and lon is not None:
+        turf_sq_ft = calculate_turf_area(lat, lon)
+        if isinstance(turf_sq_ft, str):
+            return jsonify({"error": turf_sq_ft}), 400
+        else:
+            pricing_info = calculate_pricing(turf_sq_ft)
+            contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
+            if contact_id:
+                return redirect(f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}&recurring_price={pricing_info['recurring_maintenance_biweekly_price']}&mow_price={pricing_info['one_time_mow_price']}&weed_1_price={pricing_info['weed_control_1_price']}&weed_2_price={pricing_info['weed_control_2_price']}&turf_sq_ft={pricing_info['turf_sq_ft']}")
+            else:
+                return jsonify({"error": "Failed to create or update contact"}), 500
+    else:
+        return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
