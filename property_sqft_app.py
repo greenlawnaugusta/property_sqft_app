@@ -4,11 +4,12 @@ import requests
 import logging
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Set API keys from environment variables
 greenlawnaugusta_mapbox_token = os.getenv('MAPBOX_TOKEN', 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg')
@@ -17,7 +18,23 @@ gohighlevel_api_key = os.getenv('GOHIGHLEVEL_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS properly
+CORS(app, resources={
+    r"/*": {
+        "origins": ["*"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"]
+    }
+})
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to every response"""
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 def get_lat_lon(address):
     """Get latitude and longitude using Google Maps API"""
@@ -31,10 +48,10 @@ def get_lat_lon(address):
             location = geocode_data['results'][0]['geometry']['location']
             return location['lat'], location['lng']
         else:
-            logging.warning(f"Geocoding failed for address {address}: {geocode_data['status']}")
+            logger.warning(f"Geocoding failed for address {address}: {geocode_data['status']}")
             return None, None
     except Exception as e:
-        logging.error(f"Failed to fetch geocode data for address {address}: {str(e)}")
+        logger.error(f"Failed to fetch geocode data for address {address}: {str(e)}")
         return None, None
 
 def calculate_turf_area(lat, lon):
@@ -50,7 +67,7 @@ def calculate_turf_area(lat, lon):
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         if image is None:
-            logging.error("Failed to load satellite image.")
+            logger.error("Failed to load satellite image.")
             return None
 
         # Convert to HSV color space for better segmentation
@@ -73,11 +90,11 @@ def calculate_turf_area(lat, lon):
         pixel_area = known_lot_size / total_pixels
         turf_sq_ft = turf_area * pixel_area * 2.5  # Apply correction factor
 
-        logging.info(f"Calculated turf area: {turf_sq_ft} sq ft")
+        logger.info(f"Calculated turf area: {turf_sq_ft} sq ft")
         return turf_sq_ft
 
     except Exception as e:
-        logging.error(f"Error calculating turf area: {str(e)}")
+        logger.error(f"Error calculating turf area: {str(e)}")
         return None
 
 def calculate_pricing(turf_sq_ft):
@@ -91,22 +108,22 @@ def calculate_pricing(turf_sq_ft):
 
         # Calculate service prices
         pricing = {
-            "recurring_maintenance_biweekly_price": base_price,
-            "recurring_maintenance_weekly_price": base_price * 0.75,
-            "one_time_mow_price": base_price * 1.15,
-            "full_service_biweekly_price": base_price * 1.25,
-            "full_service_weekly_price": base_price * 1.25 * 0.90,
-            "weed_control_1_price": base_price,
-            "weed_control_2_price": base_price * 1.10,
-            "weed_control_3_price": base_price * 1.15,
-            "turf_sq_ft": turf_sq_ft
+            "recurring_maintenance_biweekly_price": round(base_price, 2),
+            "recurring_maintenance_weekly_price": round(base_price * 0.75, 2),
+            "one_time_mow_price": round(base_price * 1.15, 2),
+            "full_service_biweekly_price": round(base_price * 1.25, 2),
+            "full_service_weekly_price": round(base_price * 1.25 * 0.90, 2),
+            "weed_control_1_price": round(base_price, 2),
+            "weed_control_2_price": round(base_price * 1.10, 2),
+            "weed_control_3_price": round(base_price * 1.15, 2),
+            "turf_sq_ft": round(turf_sq_ft, 2)
         }
 
-        logging.info(f"Calculated pricing: {json.dumps(pricing, indent=2)}")
+        logger.info(f"Calculated pricing: {json.dumps(pricing, indent=2)}")
         return pricing
 
     except Exception as e:
-        logging.error(f"Error calculating pricing: {str(e)}")
+        logger.error(f"Error calculating pricing: {str(e)}")
         return None
 
 def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
@@ -141,37 +158,74 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         response.raise_for_status()
         
         contact = response.json()
-        logging.info("Successfully created/updated contact in GoHighLevel")
+        logger.info("Successfully created/updated contact in GoHighLevel")
         return contact.get("contact", {}).get("id")
 
     except Exception as e:
-        logging.error(f"Error creating/updating GoHighLevel contact: {str(e)}")
+        logger.error(f"Error creating/updating GoHighLevel contact: {str(e)}")
         return None
 
-@app.route('/calculate-price', methods=['POST'])
-def calculate_price():
+@app.route('/calculate', methods=['OPTIONS'])
+def handle_options():
+    """Handle OPTIONS requests for CORS preflight"""
+    response = make_response()
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add('Access-Control-Allow-Headers', "*")
+    response.headers.add('Access-Control-Allow-Methods', "*")
+    return response, 200
+
+@app.route('/calculate', methods=['POST'])
+def calculate():
     """Main endpoint for price calculation"""
     try:
+        # Log incoming request
+        logger.info(f"Received request: {request.get_json()}")
+        
         data = request.get_json()
         
-        # Validate required fields
-        if not data or 'address' not in data:
-            return jsonify({'error': 'Address is required'}), 400
+        # Handle both full address and split address components
+        address = data.get('address')
+        if not address:
+            # Try to construct address from components
+            street = data.get('street', '')
+            city = data.get('city', '')
+            state = data.get('state', '')
+            zip_code = data.get('zip_code', '')
+            address = f"{street}, {city}, {state} {zip_code}".strip()
+
+        if not address:
+            return jsonify({
+                'status': 'error',
+                'message': 'Address is required',
+                'data': None
+            }), 400
 
         # Get coordinates
-        lat, lon = get_lat_lon(data['address'])
+        lat, lon = get_lat_lon(address)
         if not lat or not lon:
-            return jsonify({'error': 'Could not geocode address'}), 400
+            return jsonify({
+                'status': 'error',
+                'message': 'Could not geocode address',
+                'data': None
+            }), 400
 
         # Calculate turf area
         turf_area = calculate_turf_area(lat, lon)
         if turf_area is None:
-            return jsonify({'error': 'Could not calculate turf area'}), 400
+            return jsonify({
+                'status': 'error',
+                'message': 'Could not calculate turf area',
+                'data': None
+            }), 400
 
         # Calculate pricing
         pricing = calculate_pricing(turf_area)
         if pricing is None:
-            return jsonify({'error': 'Could not calculate pricing'}), 400
+            return jsonify({
+                'status': 'error',
+                'message': 'Could not calculate pricing',
+                'data': None
+            }), 400
 
         # Create/update contact if contact info provided
         if all(key in data for key in ['firstName', 'lastName', 'email', 'phone']):
@@ -180,7 +234,7 @@ def calculate_price():
                 data['lastName'],
                 data['email'],
                 data['phone'],
-                data['address'],
+                address,
                 lat,
                 lon,
                 pricing
@@ -188,11 +242,20 @@ def calculate_price():
             if contact_id:
                 pricing['contact_id'] = contact_id
 
-        return jsonify(pricing)
+        # Return success response
+        return jsonify({
+            'status': 'success',
+            'message': 'Calculation completed successfully',
+            'data': pricing
+        })
 
     except Exception as e:
-        logging.error(f"Error processing request: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        logger.error(f"Error processing request: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'data': None
+        }), 500
 
 # Health check endpoint
 @app.route('/health', methods=['GET'])
