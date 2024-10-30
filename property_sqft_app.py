@@ -11,9 +11,9 @@ from flask_cors import CORS
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set API keys from environment variables
-greenlawnaugusta_mapbox_token = os.getenv('MAPBOX_TOKEN')
-google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY')
-gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY')
+greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
+google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
+gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
 
 # Create Flask app
 app = Flask(__name__)
@@ -187,12 +187,15 @@ def calculate():
         else:
             pricing_info = calculate_pricing(turf_sq_ft)
             contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
-            return jsonify({
-                "turf_sq_ft": turf_sq_ft,
-                "pricing_info": pricing_info,
-                "contact_id": contact_id,
-                "redirect_url": f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}"
-            })
+            if contact_id:
+                return jsonify({
+                    "turf_sq_ft": turf_sq_ft,
+                    "pricing_info": pricing_info,
+                    "contact_id": contact_id,
+                    "redirect_url": f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}"
+                })
+            else:
+                return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
     else:
         return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
 
