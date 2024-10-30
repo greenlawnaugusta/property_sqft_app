@@ -4,7 +4,7 @@ import requests
 import logging
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 
 # Set up logging
@@ -188,12 +188,7 @@ def calculate():
             pricing_info = calculate_pricing(turf_sq_ft)
             contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
             if contact_id:
-                return jsonify({
-                    "turf_sq_ft": turf_sq_ft,
-                    "pricing_info": pricing_info,
-                    "contact_id": contact_id,
-                    "redirect_url": f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}"
-                })
+                return redirect(f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}&recurring_price={pricing_info['recurring_maintenance_biweekly_price']}&mow_price={pricing_info['one_time_mow_price']}&weed_1_price={pricing_info['weed_control_1_price']}&weed_2_price={pricing_info['weed_control_2_price']}&turf_sq_ft={pricing_info['turf_sq_ft']}")
             else:
                 return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
     else:
