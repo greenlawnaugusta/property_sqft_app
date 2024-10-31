@@ -4,7 +4,7 @@ import requests
 import logging
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # Set up logging
@@ -159,9 +159,6 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         return contact.get("contact", {}).get("id")
     else:
         logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
-        # Debugging output
-        logging.debug(f"Payload sent: {json.dumps(contact_data, indent=4)}")
-        logging.debug(f"Response received: {response.text}")
         return None
 
 # Flask route to handle turf area and pricing calculation
@@ -170,7 +167,6 @@ def calculate():
     if request.content_type == 'application/json':
         data = request.json
     else:
-        # Handle form-encoded data
         data = request.form
 
     address = data.get('address')
