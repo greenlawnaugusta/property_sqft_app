@@ -1,16 +1,16 @@
-from flask import Flask, request, jsonify
-import requests
-import json
-import logging
 import os
+import json
+import requests
+import logging
 import cv2
 import numpy as np
+from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set API keys
+# Set API keys from environment variables
 greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
@@ -195,6 +195,20 @@ def calculate():
             })
     else:
         return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
+
+# Flask route to retrieve contact data
+@app.route('/getContactData/<contact_id>', methods=['GET'])
+def get_contact_data(contact_id):
+    url = f"https://rest.gohighlevel.com/v1/contacts/{contact_id}"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return jsonify(response.json())
+    else:
+        return jsonify({'error': 'Failed to fetch contact data'}), 400
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
