@@ -11,9 +11,9 @@ from flask_cors import CORS
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set API keys from environment variables
-greenlawnaugusta_mapbox_token = os.getenv('GREENLAWNAUGUSTA_MAPBOX_TOKEN', 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg')
-google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo')
-gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y')
+greenlawnaugusta_mapbox_token = os.getenv('GREENLAWNAUGUSTA_MAPBOX_TOKEN', 'YOUR_MAPBOX_API_KEY_HERE')
+google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'YOUR_GOOGLE_MAPS_API_KEY_HERE')
+gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'YOUR_GOHIGHLEVEL_API_KEY_HERE')
 
 # Create Flask app
 app = Flask(__name__)
@@ -192,20 +192,23 @@ def calculate():
     else:
         return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
 
-# Flask route to retrieve contact data
-@app.route('/getContactData/<contact_id>', methods=['GET'])
-def get_contact_data(contact_id):
+# Flask route to retrieve contact data (proxy)
+@app.route('/proxy/gohighlevel/<contact_id>', methods=['GET'])
+def proxy_gohighlevel(contact_id):
     url = f"https://rest.gohighlevel.com/v1/contacts/{contact_id}"
     headers = {
         "Authorization": f"Bearer {gohighlevel_api_key}",
         "Content-Type": "application/json"
     }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return jsonify(response.json())
-    else:
-        return jsonify({'error': 'Failed to fetch contact data'}), 400
 
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return jsonify(response.json()), response.status_code
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': str(e)}), 500
+
+# Start Flask app
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
