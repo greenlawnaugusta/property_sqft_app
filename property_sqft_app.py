@@ -11,10 +11,9 @@ from flask_cors import CORS
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set API keys from environment variables
-greenlawnaugusta_mapbox_token = os.getenv('GREENLAWNAUGUSTA_MAPBOX_TOKEN', 'YOUR_MAPBOX_API_KEY_HERE')
-google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'YOUR_GOOGLE_MAPS_API_KEY_HERE')
-gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'YOUR_GOHIGHLEVEL_API_KEY_HERE')
-
+greenlawnaugusta_mapbox_token = os.getenv('GREENLAWNAUGUSTA_MAPBOX_TOKEN', 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg')
+google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo')
+gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y')
 # Create Flask app
 app = Flask(__name__)
 CORS(app)
