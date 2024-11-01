@@ -14,6 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 greenlawnaugusta_mapbox_token = os.getenv('GREENLAWNAUGUSTA_MAPBOX_TOKEN', 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg')
 google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo')
 gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y')
+
 # Create Flask app
 app = Flask(__name__)
 CORS(app)
@@ -140,15 +141,15 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         "address1": address,
         "latitude": lat,
         "longitude": lon,
-        "customField": {
-            "weed_control_1_price": pricing_info["weed_control_1_price"],
-            "weed_control_2_price": pricing_info["weed_control_2_price"],
-            "weed_control_3_price": pricing_info["weed_control_3_price"],
-            "recurring_maintenance_price": pricing_info["recurring_maintenance_biweekly_price"],
-            "one_time_mow_price": pricing_info["one_time_mow_price"],
-            "full_service_price": pricing_info["full_service_biweekly_price"],
-            "turf_sq_ft": pricing_info["turf_sq_ft"]
-        }
+        "customFields": [  # Corrected from customField to customFields (list format)
+            {"name": "weed_control_1_price", "value": pricing_info["weed_control_1_price"]},
+            {"name": "weed_control_2_price", "value": pricing_info["weed_control_2_price"]},
+            {"name": "weed_control_3_price", "value": pricing_info["weed_control_3_price"]},
+            {"name": "recurring_maintenance_price", "value": pricing_info["recurring_maintenance_biweekly_price"]},
+            {"name": "one_time_mow_price", "value": pricing_info["one_time_mow_price"]},
+            {"name": "full_service_price", "value": pricing_info["full_service_biweekly_price"]},
+            {"name": "turf_sq_ft", "value": pricing_info["turf_sq_ft"]}
+        ]
     }
 
     response = requests.post(url, headers=headers, json=contact_data)
@@ -186,28 +187,4 @@ def calculate():
                 "turf_sq_ft": turf_sq_ft,
                 "pricing_info": pricing_info,
                 "contact_id": contact_id,
-                "redirect_url": f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}"
-            })
-    else:
-        return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
-
-# Flask route to retrieve contact data (proxy)
-@app.route('/proxy/gohighlevel/<contact_id>', methods=['GET'])
-def proxy_gohighlevel(contact_id):
-    url = f"https://rest.gohighlevel.com/v1/contacts/{contact_id}"
-    headers = {
-        "Authorization": f"Bearer {gohighlevel_api_key}",
-        "Content-Type": "application/json"
-    }
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json()), response.status_code
-    except requests.exceptions.RequestException as e:
-        return jsonify({'error': str(e)}), 500
-
-# Start Flask app
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+                "redirect_url": f"https://pricing.greenl
