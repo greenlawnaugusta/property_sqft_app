@@ -187,4 +187,32 @@ def calculate():
                 "turf_sq_ft": turf_sq_ft,
                 "pricing_info": pricing_info,
                 "contact_id": contact_id,
-                "redirect_url": f"https://pricing.greenl
+                "redirect_url": f"https://pricing.greenlawnaugusta.com/pricing-page?contact_id={contact_id}"
+            })
+    else:
+        return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
+
+# Flask route to retrieve contact data (proxy)
+@app.route('/proxy/gohighlevel/<contact_id>', methods=['GET'])
+def proxy_gohighlevel(contact_id):
+    url = f"https://rest.gohighlevel.com/v1/contacts/{contact_id}"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        contact_data = response.json()
+        if "contact" in contact_data:
+            return jsonify(contact_data), response.status_code
+        else:
+            return jsonify({"error": "Contact data is missing"}), 404
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': str(e)}), 500
+
+# Start Flask app
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
