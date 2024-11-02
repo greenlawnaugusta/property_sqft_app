@@ -80,6 +80,10 @@ def calculate_turf_area(lat, lon):
         turf_sq_ft = turf_area * pixel_area * correction_factor
 
         logging.info(f"Calculated turf area: {turf_sq_ft} sq ft")
+
+        # Clean up image file after processing
+        os.remove(image_path)
+
         return turf_sq_ft
 
     except requests.exceptions.RequestException as e:
