@@ -90,6 +90,46 @@ def calculate_turf_area(lat, lon):
         logging.error(f"Error fetching satellite image from Mapbox: {str(e)}")
         return f"Error fetching satellite image from Mapbox: {str(e)}"
 
+# Function to calculate pricing based on turf area
+def calculate_pricing(turf_sq_ft):
+    # Calculate price based on turf square footage
+    if turf_sq_ft <= 4000:
+        price = 50
+    else:
+        price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
+
+    # Adjust price based on service type
+    recurring_maintenance_biweekly_price = price
+    recurring_maintenance_weekly_price = recurring_maintenance_biweekly_price * 0.75
+    one_time_mow_price = recurring_maintenance_biweekly_price * 1.15
+    full_service_biweekly_price = recurring_maintenance_biweekly_price * 1.25
+    full_service_weekly_price = full_service_biweekly_price * 0.90
+
+    # Calculate weed control prices
+    if turf_sq_ft <= 4000:
+        weed_control_price = 50
+    else:
+        weed_control_price = 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
+
+    weed_control_1_price = weed_control_price
+    weed_control_2_price = weed_control_1_price * 1.10
+    weed_control_3_price = weed_control_1_price * 1.15
+
+    pricing_info = {
+        "recurring_maintenance_weekly_price": recurring_maintenance_weekly_price,
+        "recurring_maintenance_biweekly_price": recurring_maintenance_biweekly_price,
+        "one_time_mow_price": one_time_mow_price,
+        "full_service_weekly_price": full_service_weekly_price,
+        "full_service_biweekly_price": full_service_biweekly_price,
+        "weed_control_1_price": weed_control_1_price,
+        "weed_control_2_price": weed_control_2_price,
+        "weed_control_3_price": weed_control_3_price,
+        "turf_sq_ft": turf_sq_ft
+    }
+
+    logging.info(f"Calculated pricing: {json.dumps(pricing_info, indent=4)}")
+    return pricing_info
+
 # Flask route to handle turf area and pricing calculation
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -121,7 +161,27 @@ def calculate():
     else:
         return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
 
+# Flask route to retrieve contact data (proxy)
+@app.route('/proxy/gohighlevel/<contact_id>', methods=['GET'])
+def proxy_gohighlevel(contact_id):
+    url = f"https://rest.gohighlevel.com/v1/contacts/{contact_id}"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        contact_data = response.json()
+        if "contact" in contact_data:
+            return jsonify(contact_data), response.status_code
+        else:
+            return jsonify({"error": "Contact data is missing"}), 404
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': str(e)}), 500
+
 # Start Flask app
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # Use the Render-provided port
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
