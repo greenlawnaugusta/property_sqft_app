@@ -19,6 +19,41 @@ gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5
 app = Flask(__name__)
 CORS(app)
 
+# Function to create or update a contact in GoHighLevel with pricing data
+def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
+    url = "https://rest.gohighlevel.com/v1/contacts/"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+    contact_data = {
+        "firstName": first_name,
+        "lastName": last_name,
+        "email": email,
+        "phone": phone,
+        "address1": address,
+        "latitude": lat,
+        "longitude": lon,
+        "customFields": [
+            {"name": "weed_control_1_price", "value": pricing_info["weed_control_1_price"]},
+            {"name": "weed_control_2_price", "value": pricing_info["weed_control_2_price"]},
+            {"name": "weed_control_3_price", "value": pricing_info["weed_control_3_price"]},
+            {"name": "recurring_maintenance_price", "value": pricing_info["recurring_maintenance_biweekly_price"]},
+            {"name": "one_time_mow_price", "value": pricing_info["one_time_mow_price"]},
+            {"name": "full_service_price", "value": pricing_info["full_service_biweekly_price"]},
+            {"name": "turf_sq_ft", "value": pricing_info["turf_sq_ft"]}
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=contact_data)
+    if response.status_code in [200, 201]:
+        contact = response.json()
+        logging.info("Successfully created or updated contact in GoHighLevel with pricing information.")
+        return contact.get("contact", {}).get("id")
+    else:
+        logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
+        return None
+
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
     geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}'
