@@ -1,58 +1,23 @@
-import os
-import json
+from flask import Flask, request, jsonify
 import requests
+import json
 import logging
+import os
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set API keys from environment variables
-greenlawnaugusta_mapbox_token = os.getenv('GREENLAWNAUGUSTA_MAPBOX_TOKEN', 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg')
-google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo')
-gohighlevel_api_key = os.getenv('GOHIGHLEVEL_API_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y')
+# Set API keys
+greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
+google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
+gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
 
 # Create Flask app
 app = Flask(__name__)
 CORS(app)
-
-# Function to create or update a contact in GoHighLevel with pricing data
-def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
-    url = "https://rest.gohighlevel.com/v1/contacts/"
-    headers = {
-        "Authorization": f"Bearer {gohighlevel_api_key}",
-        "Content-Type": "application/json"
-    }
-    contact_data = {
-        "firstName": first_name,
-        "lastName": last_name,
-        "email": email,
-        "phone": phone,
-        "address1": address,
-        "latitude": lat,
-        "longitude": lon,
-        "customFields": [
-            {"name": "weed_control_1_price", "value": pricing_info["weed_control_1_price"]},
-            {"name": "weed_control_2_price", "value": pricing_info["weed_control_2_price"]},
-            {"name": "weed_control_3_price", "value": pricing_info["weed_control_3_price"]},
-            {"name": "recurring_maintenance_price", "value": pricing_info["recurring_maintenance_biweekly_price"]},
-            {"name": "one_time_mow_price", "value": pricing_info["one_time_mow_price"]},
-            {"name": "full_service_price", "value": pricing_info["full_service_biweekly_price"]},
-            {"name": "turf_sq_ft", "value": pricing_info["turf_sq_ft"]}
-        ]
-    }
-
-    response = requests.post(url, headers=headers, json=contact_data)
-    if response.status_code in [200, 201]:
-        contact = response.json()
-        logging.info("Successfully created or updated contact in GoHighLevel with pricing information.")
-        return contact.get("contact", {}).get("id")
-    else:
-        logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
-        return None
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
@@ -115,10 +80,6 @@ def calculate_turf_area(lat, lon):
         turf_sq_ft = turf_area * pixel_area * correction_factor
 
         logging.info(f"Calculated turf area: {turf_sq_ft} sq ft")
-
-        # Clean up image file after processing
-        os.remove(image_path)
-
         return turf_sq_ft
 
     except requests.exceptions.RequestException as e:
@@ -165,12 +126,51 @@ def calculate_pricing(turf_sq_ft):
     logging.info(f"Calculated pricing: {json.dumps(pricing_info, indent=4)}")
     return pricing_info
 
+# Function to create or update a contact in GoHighLevel with pricing data
+def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
+    url = "https://rest.gohighlevel.com/v1/contacts/"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+    contact_data = {
+        "firstName": first_name,
+        "lastName": last_name,
+        "email": email,
+        "phone": phone,
+        "address1": address,
+        "latitude": lat,
+        "longitude": lon,
+        "customField": {
+            "weed_control_1_price": pricing_info["weed_control_1_price"],
+            "weed_control_2_price": pricing_info["weed_control_2_price"],
+            "weed_control_3_price": pricing_info["weed_control_3_price"],
+            "recurring_maintenance_price": pricing_info["recurring_maintenance_biweekly_price"],
+            "one_time_mow_price": pricing_info["one_time_mow_price"],
+            "full_service_price": pricing_info["full_service_biweekly_price"],
+            "turf_sq_ft": pricing_info["turf_sq_ft"]
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=contact_data)
+    if response.status_code in [200, 201]:
+        contact = response.json()
+        logging.info("Successfully created or updated contact in GoHighLevel with pricing information.")
+        return contact.get("contact", {}).get("id")
+    else:
+        logging.error(f"Failed to create or update contact in GoHighLevel: {response.status_code} - {response.text}")
+        # Debugging output
+        logging.debug(f"Payload sent: {json.dumps(contact_data, indent=4)}")
+        logging.debug(f"Response received: {response.text}")
+        return None
+
 # Flask route to handle turf area and pricing calculation
 @app.route('/calculate', methods=['POST'])
 def calculate():
     if request.content_type == 'application/json':
         data = request.json
     else:
+        # Handle form-encoded data
         data = request.form
 
     address = data.get('address')
@@ -196,27 +196,6 @@ def calculate():
     else:
         return jsonify({"error": "Failed to retrieve latitude and longitude for the address."}), 400
 
-# Flask route to retrieve contact data (proxy)
-@app.route('/proxy/gohighlevel/<contact_id>', methods=['GET'])
-def proxy_gohighlevel(contact_id):
-    url = f"https://rest.gohighlevel.com/v1/contacts/{contact_id}"
-    headers = {
-        "Authorization": f"Bearer {gohighlevel_api_key}",
-        "Content-Type": "application/json"
-    }
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        contact_data = response.json()
-        if "contact" in contact_data:
-            return jsonify(contact_data), response.status_code
-        else:
-            return jsonify({"error": "Contact data is missing"}), 404
-    except requests.exceptions.RequestException as e:
-        return jsonify({'error': str(e)}), 500
-
-# Start Flask app
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
