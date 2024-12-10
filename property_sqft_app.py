@@ -117,6 +117,23 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         logging.error(f"Error creating/updating contact: {response.status_code} - {response.text}")
         return None
 
+# Function to create products dynamically in GoHighLevel
+def create_product_in_gohighlevel(product_name, price):
+    url = "https://rest.gohighlevel.com/v1/products/"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+    product_data = {
+        "name": product_name,
+        "price": price,
+    }
+    response = requests.post(url, headers=headers, json=product_data)
+    if response.status_code in [200, 201]:
+        logging.info(f"Product '{product_name}' created successfully.")
+    else:
+        logging.error(f"Failed to create product '{product_name}': {response.text}")
+
 @app.route('/calculate', methods=['POST'])
 def calculate():
     data = request.json if request.content_type == 'application/json' else request.form
@@ -134,25 +151,20 @@ def calculate():
         pricing_info = calculate_pricing(turf_sq_ft)
         contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
         if contact_id:
-            redirect_url = (
-                f"https://pricing.greenlawnaugusta.com/pricing-page221164?"
-                f"contact_id={contact_id}&"
-                f"first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&"
-                f"address={address}&turf_sq_ft={turf_sq_ft}&"
-                f"recurring_maintenance_biweekly_price={pricing_info['recurring_maintenance_biweekly_price']}&"
-                f"recurring_maintenance_weekly_price={pricing_info['recurring_maintenance_weekly_price']}&"
-                f"one_time_mow_price={pricing_info['one_time_mow_price']}&"
-                f"full_service_biweekly_price={pricing_info['full_service_biweekly_price']}&"
-                f"full_service_weekly_price={pricing_info['full_service_weekly_price']}&"
-                f"weed_control_1_price={pricing_info['weed_control_1_price']}&"
-                f"weed_control_2_price={pricing_info['weed_control_2_price']}&"
-                f"weed_control_3_price={pricing_info['weed_control_3_price']}"
-            )
+            # Create products dynamically
+            create_product_in_gohighlevel("Recurring Biweekly Maintenance", pricing_info["recurring_maintenance_biweekly_price"])
+            create_product_in_gohighlevel("Recurring Weekly Maintenance", pricing_info["recurring_maintenance_weekly_price"])
+            create_product_in_gohighlevel("One-Time Mow", pricing_info["one_time_mow_price"])
+            create_product_in_gohighlevel("Full Service Biweekly", pricing_info["full_service_biweekly_price"])
+            create_product_in_gohighlevel("Full Service Weekly", pricing_info["full_service_weekly_price"])
+            create_product_in_gohighlevel("Weed Control 1", pricing_info["weed_control_1_price"])
+            create_product_in_gohighlevel("Weed Control 2", pricing_info["weed_control_2_price"])
+            create_product_in_gohighlevel("Weed Control 3", pricing_info["weed_control_3_price"])
+
             return jsonify({
                 "turf_sq_ft": turf_sq_ft,
                 "pricing_info": pricing_info,
-                "contact_id": contact_id,
-                "redirect_url": redirect_url
+                "contact_id": contact_id
             })
     return jsonify({"error": "Failed to process request."}), 400
 
