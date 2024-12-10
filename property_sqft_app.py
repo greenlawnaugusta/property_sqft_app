@@ -10,11 +10,10 @@ from flask_cors import CORS
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# API keys
-GREENLAWN_MAPBOX_TOKEN = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
-GOOGLE_MAPS_API_KEY = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
-GOHIGHLEVEL_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
-CUSTOM_INTEGRATION_KEY = 'pit-98b27bb6-cec6-47b0-829c-aa14a519c4d3'
+# Set API keys
+greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
+google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
+gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
 
 # Create Flask app
 app = Flask(__name__)
@@ -22,7 +21,7 @@ CORS(app)
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
-    geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={GOOGLE_MAPS_API_KEY}'
+    geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}'
     response = requests.get(geocoding_endpoint)
     if response.status_code == 200:
         geocode_data = response.json()
@@ -39,7 +38,7 @@ def get_lat_lon(address):
 # Function to calculate turf area using OpenCV and Mapbox Satellite Imagery
 def calculate_turf_area(lat, lon):
     try:
-        mapbox_url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},20/1000x1000?access_token={GREENLAWN_MAPBOX_TOKEN}"
+        mapbox_url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},20/1000x1000?access_token={greenlawnaugusta_mapbox_token}"
         response = requests.get(mapbox_url)
         response.raise_for_status()
         image_path = 'satellite_image.png'
@@ -78,20 +77,17 @@ def calculate_turf_area(lat, lon):
 def calculate_pricing(turf_sq_ft):
     base_price = 50 if turf_sq_ft <= 4000 else 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
 
-    pricing_multipliers = {
-        "recurring_maintenance_biweekly": 1.0,
-        "recurring_maintenance_weekly": 0.75,
-        "one_time_mow": 1.15,
-        "full_service_biweekly": 1.25,
-        "full_service_weekly": 1.25 * 0.90,
-        "weed_control_1": 1.0,
-        "weed_control_2": 1.10,
-        "weed_control_3": 1.15,
+    pricing_info = {
+        "recurring_maintenance_biweekly_price": base_price,
+        "recurring_maintenance_weekly_price": base_price * 0.75,
+        "one_time_mow_price": base_price * 1.15,
+        "full_service_biweekly_price": base_price * 1.25,
+        "full_service_weekly_price": base_price * 1.25 * 0.90,
+        "weed_control_1_price": base_price,
+        "weed_control_2_price": base_price * 1.10,
+        "weed_control_3_price": base_price * 1.15,
+        "turf_sq_ft": turf_sq_ft,
     }
-
-    pricing_info = {key: base_price * multiplier for key, multiplier in pricing_multipliers.items()}
-    pricing_info["turf_sq_ft"] = turf_sq_ft
-
     logging.info(f"Calculated pricing: {json.dumps(pricing_info, indent=4)}")
     return pricing_info
 
@@ -99,7 +95,7 @@ def calculate_pricing(turf_sq_ft):
 def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
     url = "https://rest.gohighlevel.com/v1/contacts/"
     headers = {
-        "Authorization": f"Bearer {GOHIGHLEVEL_API_KEY}",
+        "Authorization": f"Bearer {gohighlevel_api_key}",
         "Content-Type": "application/json"
     }
     contact_data = {
@@ -115,10 +111,10 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
     response = requests.post(url, headers=headers, json=contact_data)
     if response.status_code in [200, 201]:
         contact = response.json()
-        logging.info(f"Contact created/updated successfully: {contact}")
+        logging.info("Successfully created/updated contact.")
         return contact.get("contact", {}).get("id")
     else:
-        logging.error(f"Failed to create/update contact: {response.status_code}, {response.text}")
+        logging.error(f"Error creating/updating contact: {response.status_code} - {response.text}")
         return None
 
 @app.route('/calculate', methods=['POST'])
@@ -143,14 +139,14 @@ def calculate():
                 f"contact_id={contact_id}&"
                 f"first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&"
                 f"address={address}&turf_sq_ft={turf_sq_ft}&"
-                f"recurring_maintenance_biweekly_price={pricing_info['recurring_maintenance_biweekly']}&"
-                f"recurring_maintenance_weekly_price={pricing_info['recurring_maintenance_weekly']}&"
-                f"one_time_mow_price={pricing_info['one_time_mow']}&"
-                f"full_service_biweekly_price={pricing_info['full_service_biweekly']}&"
-                f"full_service_weekly_price={pricing_info['full_service_weekly']}&"
-                f"weed_control_1_price={pricing_info['weed_control_1']}&"
-                f"weed_control_2_price={pricing_info['weed_control_2']}&"
-                f"weed_control_3_price={pricing_info['weed_control_3']}"
+                f"recurring_maintenance_biweekly_price={pricing_info['recurring_maintenance_biweekly_price']}&"
+                f"recurring_maintenance_weekly_price={pricing_info['recurring_maintenance_weekly_price']}&"
+                f"one_time_mow_price={pricing_info['one_time_mow_price']}&"
+                f"full_service_biweekly_price={pricing_info['full_service_biweekly_price']}&"
+                f"full_service_weekly_price={pricing_info['full_service_weekly_price']}&"
+                f"weed_control_1_price={pricing_info['weed_control_1_price']}&"
+                f"weed_control_2_price={pricing_info['weed_control_2_price']}&"
+                f"weed_control_3_price={pricing_info['weed_control_3_price']}"
             )
             return jsonify({
                 "turf_sq_ft": turf_sq_ft,
