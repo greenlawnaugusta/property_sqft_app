@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Set API keys securely from environment variables
 greenlawnaugusta_mapbox_token = os.environ.get('MAPBOX_ACCESS_TOKEN')
-google_maps_api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
+google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = os.environ.get('GOHIGHLEVEL_API_KEY')
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
 
