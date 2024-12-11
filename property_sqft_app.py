@@ -10,8 +10,8 @@ from flask_cors import CORS
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set API keys securely from environment variables
-greenlawnaugusta_mapbox_token = os.environ.get('MAPBOX_ACCESS_TOKEN')
+# Set API keys
+greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = os.environ.get('GOHIGHLEVEL_API_KEY')
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
@@ -32,13 +32,48 @@ def get_lat_lon(address):
                 return location['lat'], location['lng']
             else:
                 logging.warning(f"Geocoding failed for address: {address}. Error: {geocode_data.get('error_message', geocode_data['status'])}")
-                return None, None
         else:
-            logging.error(f"Failed to fetch geocode data. HTTP status code: {response.status_code}")
-            return None, None
+            logging.error(f"HTTP error fetching geocode data. Status code: {response.status_code}")
     except Exception as e:
-        logging.error(f"Error fetching geocode data: {str(e)}")
-        return None, None
+        logging.error(f"Exception during geocoding: {str(e)}")
+    return None, None
+
+# Function to calculate turf area using Mapbox satellite imagery
+def calculate_turf_area(lat, lon):
+    try:
+        mapbox_url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},20/1000x1000?access_token={greenlawnaugusta_mapbox_token}"
+        response = requests.get(mapbox_url)
+        response.raise_for_status()
+        image_path = 'satellite_image.png'
+        with open(image_path, 'wb') as f:
+            f.write(response.content)
+
+        image = cv2.imread(image_path)
+        if image is None:
+            logging.error("Failed to load satellite image.")
+            return "Failed to load satellite image."
+
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lower_beige = np.array([10, 0, 80])
+        upper_beige = np.array([30, 100, 255])
+        mask = cv2.inRange(hsv_image, lower_beige, upper_beige)
+
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        turf_area = cv2.countNonZero(mask)
+        known_lot_size = 9915  # Example value, update based on actual lot size
+        total_pixels = mask.shape[0] * mask.shape[1]
+        pixel_area = known_lot_size / total_pixels
+        correction_factor = 2.5
+        turf_sq_ft = turf_area * pixel_area * correction_factor
+
+        logging.info(f"Calculated turf area: {turf_sq_ft} sq ft")
+        return turf_sq_ft
+    except Exception as e:
+        logging.error(f"Error calculating turf area: {str(e)}")
+        return str(e)
 
 # Function to calculate pricing
 def calculate_pricing(turf_sq_ft):
@@ -81,37 +116,6 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
     except Exception as e:
         logging.error(f"Error in GoHighLevel API: {str(e)}")
         return None
-
-# Function to create a Stripe Checkout session
-@app.route('/create-checkout-session', methods=['POST'])
-def create_checkout_session():
-    try:
-        data = request.json
-        product_name = data.get('product_name', 'Lawn Service')
-        price = data.get('price', 0)
-        email = data.get('email', 'customer@example.com')
-
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            customer_email=email,
-            line_items=[
-                {
-                    'price_data': {
-                        'currency': 'usd',
-                        'product_data': {'name': product_name},
-                        'unit_amount': int(float(price) * 100),
-                    },
-                    'quantity': 1,
-                },
-            ],
-            mode='payment',
-            success_url='https://yourwebsite.com/success',
-            cancel_url='https://yourwebsite.com/cancel',
-        )
-        return jsonify({'id': session.id})
-    except Exception as e:
-        logging.error(f"Error creating Stripe Checkout session: {str(e)}")
-        return jsonify(error=str(e)), 400
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
