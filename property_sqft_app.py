@@ -5,6 +5,7 @@ import logging
 import os
 import cv2
 import numpy as np
+import stripe
 from flask_cors import CORS
 
 # Set up logging
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
-ghl_private_integration_token = 'pit-98b27bb6-cec6-47b0-829c-aa14a519c4d3'
+stripe.api_key = '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'
 
 # Create Flask app
 app = Flask(__name__)
@@ -36,44 +37,6 @@ def get_lat_lon(address):
         logging.error(f"Failed to fetch geocode data for address {address}: {response.status_code}")
         return None, None
 
-# Function to calculate turf area using OpenCV and Mapbox Satellite Imagery
-def calculate_turf_area(lat, lon):
-    try:
-        mapbox_url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},20/1000x1000?access_token={greenlawnaugusta_mapbox_token}"
-        response = requests.get(mapbox_url)
-        response.raise_for_status()
-        image_path = 'satellite_image.png'
-        with open(image_path, 'wb') as f:
-            f.write(response.content)
-
-        image = cv2.imread(image_path)
-        if image is None:
-            logging.error("Failed to load satellite image.")
-            return "Failed to load satellite image."
-
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        lower_beige = np.array([10, 0, 80])
-        upper_beige = np.array([30, 100, 255])
-        mask = cv2.inRange(hsv_image, lower_beige, upper_beige)
-
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
-        turf_area = cv2.countNonZero(mask)
-        known_lot_size = 9915
-        total_pixels = mask.shape[0] * mask.shape[1]
-        pixel_area = known_lot_size / total_pixels
-        correction_factor = 2.5
-        turf_sq_ft = turf_area * pixel_area * correction_factor
-
-        logging.info(f"Calculated turf area: {turf_sq_ft} sq ft")
-        return turf_sq_ft
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching satellite image from Mapbox: {str(e)}")
-        return f"Error fetching satellite image from Mapbox: {str(e)}"
-
 # Function to calculate pricing
 def calculate_pricing(turf_sq_ft):
     base_price = 50 if turf_sq_ft <= 4000 else 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
@@ -84,57 +47,58 @@ def calculate_pricing(turf_sq_ft):
         "one_time_mow_price": base_price * 1.15,
         "full_service_biweekly_price": base_price * 1.25,
         "full_service_weekly_price": base_price * 1.25 * 0.90,
-        "weed_control_1_price": base_price,
-        "weed_control_2_price": base_price * 1.10,
-        "weed_control_3_price": base_price * 1.15,
         "turf_sq_ft": turf_sq_ft,
     }
     logging.info(f"Calculated pricing: {json.dumps(pricing_info, indent=4)}")
     return pricing_info
 
-# Function to create/update GoHighLevel contact
-def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
-    url = "https://rest.gohighlevel.com/v1/contacts/"
-    headers = {
-        "Authorization": f"Bearer {gohighlevel_api_key}",
-        "Content-Type": "application/json"
-    }
-    contact_data = {
-        "firstName": first_name,
-        "lastName": last_name,
-        "email": email,
-        "phone": phone,
-        "address1": address,
-        "latitude": lat,
-        "longitude": lon,
-        "customField": pricing_info
-    }
-    response = requests.post(url, headers=headers, json=contact_data)
-    if response.status_code in [200, 201]:
-        contact = response.json()
-        logging.info("Successfully created/updated contact.")
-        return contact.get("contact", {}).get("id")
-    else:
-        logging.error(f"Error creating/updating contact: {response.status_code} - {response.text}")
-        return None
+# Function to create a Stripe product
+def create_stripe_product(product_name, price):
+    try:
+        product = stripe.Product.create(name=product_name)
+        price_data = stripe.Price.create(
+            product=product.id,
+            unit_amount=int(price * 100),  # Stripe uses cents
+            currency="usd",
+        )
+        logging.info(f"Created Stripe product: {product_name} with price: {price}")
+        return product.id, price_data.id
+    except Exception as e:
+        logging.error(f"Error creating Stripe product: {product_name} - {str(e)}")
+        return None, None
 
-# Function to create products dynamically in GoHighLevel
-def create_product_in_gohighlevel(product_name, price):
-    url = "https://rest.gohighlevel.com/v1/products/"
-    headers = {
-        "Authorization": f"Bearer {gohighlevel_api_key}",
-        "Content-Type": "application/json"
-    }
-    product_data = {
-        "name": product_name,
-        "price": price,
-        "type": "SERVICE"
-    }
-    response = requests.post(url, headers=headers, json=product_data)
-    if response.status_code in [200, 201]:
-        logging.info(f"Product '{product_name}' created successfully.")
-    else:
-        logging.error(f"Failed to create product '{product_name}': {response.text}")
+# Function to create a Stripe Checkout session
+@app.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    data = request.json
+    product_name = data.get('product_name', 'Lawn Service')
+    price = data.get('price', 0)
+    email = data.get('email', 'customer@example.com')
+
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            customer_email=email,
+            line_items=[
+                {
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {
+                            'name': product_name,
+                        },
+                        'unit_amount': int(float(price) * 100),  # Convert to cents
+                    },
+                    'quantity': 1,
+                },
+            ],
+            mode='payment',
+            success_url='https://yourwebsite.com/success',
+            cancel_url='https://yourwebsite.com/cancel',
+        )
+        return jsonify({'id': session.id})
+    except Exception as e:
+        logging.error(f"Error creating Stripe Checkout session: {str(e)}")
+        return jsonify(error=str(e)), 400
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -151,23 +115,20 @@ def calculate():
         if isinstance(turf_sq_ft, str):
             return jsonify({"error": turf_sq_ft}), 400
         pricing_info = calculate_pricing(turf_sq_ft)
-        contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
-        if contact_id:
-            # Create products dynamically
-            create_product_in_gohighlevel("Recurring Biweekly Maintenance", pricing_info["recurring_maintenance_biweekly_price"])
-            create_product_in_gohighlevel("Recurring Weekly Maintenance", pricing_info["recurring_maintenance_weekly_price"])
-            create_product_in_gohighlevel("One-Time Mow", pricing_info["one_time_mow_price"])
-            create_product_in_gohighlevel("Full Service Biweekly", pricing_info["full_service_biweekly_price"])
-            create_product_in_gohighlevel("Full Service Weekly", pricing_info["full_service_weekly_price"])
-            create_product_in_gohighlevel("Weed Control 1", pricing_info["weed_control_1_price"])
-            create_product_in_gohighlevel("Weed Control 2", pricing_info["weed_control_2_price"])
-            create_product_in_gohighlevel("Weed Control 3", pricing_info["weed_control_3_price"])
 
-            return jsonify({
-                "turf_sq_ft": turf_sq_ft,
-                "pricing_info": pricing_info,
-                "contact_id": contact_id
-            })
+        # Dynamically create Stripe products for each pricing item
+        stripe_products = {}
+        for product_name, price in pricing_info.items():
+            if product_name != "turf_sq_ft":  # Skip turf_sq_ft as it's not a price
+                stripe_product_id, stripe_price_id = create_stripe_product(product_name.replace("_", " ").title(), price)
+                if stripe_product_id and stripe_price_id:
+                    stripe_products[product_name] = {"product_id": stripe_product_id, "price_id": stripe_price_id}
+
+        return jsonify({
+            "turf_sq_ft": turf_sq_ft,
+            "pricing_info": pricing_info,
+            "stripe_products": stripe_products
+        })
     return jsonify({"error": "Failed to process request."}), 400
 
 if __name__ == '__main__':
