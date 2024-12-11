@@ -11,11 +11,11 @@ from flask_cors import CORS
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set API keys
-greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
-google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
-gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
-stripe.api_key = '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'
+# Set API keys securely from environment variables
+greenlawnaugusta_mapbox_token = os.environ.get('MAPBOX_ACCESS_TOKEN')
+google_maps_api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+stripe_public_key = os.environ.get('STRIPE_PUBLIC_KEY')  # To expose for front-end, if needed
 
 # Create Flask app
 app = Flask(__name__)
@@ -36,6 +36,44 @@ def get_lat_lon(address):
     else:
         logging.error(f"Failed to fetch geocode data for address {address}: {response.status_code}")
         return None, None
+
+# Function to calculate turf area using OpenCV and Mapbox Satellite Imagery
+def calculate_turf_area(lat, lon):
+    try:
+        mapbox_url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},20/1000x1000?access_token={greenlawnaugusta_mapbox_token}"
+        response = requests.get(mapbox_url)
+        response.raise_for_status()
+        image_path = 'satellite_image.png'
+        with open(image_path, 'wb') as f:
+            f.write(response.content)
+
+        image = cv2.imread(image_path)
+        if image is None:
+            logging.error("Failed to load satellite image.")
+            return "Failed to load satellite image."
+
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lower_beige = np.array([10, 0, 80])
+        upper_beige = np.array([30, 100, 255])
+        mask = cv2.inRange(hsv_image, lower_beige, upper_beige)
+
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        turf_area = cv2.countNonZero(mask)
+        known_lot_size = 9915
+        total_pixels = mask.shape[0] * mask.shape[1]
+        pixel_area = known_lot_size / total_pixels
+        correction_factor = 2.5
+        turf_sq_ft = turf_area * pixel_area * correction_factor
+
+        logging.info(f"Calculated turf area: {turf_sq_ft} sq ft")
+        return turf_sq_ft
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching satellite image from Mapbox: {str(e)}")
+        return f"Error fetching satellite image from Mapbox: {str(e)}"
 
 # Function to calculate pricing
 def calculate_pricing(turf_sq_ft):
