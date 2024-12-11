@@ -14,8 +14,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Set API keys securely from environment variables
 greenlawnaugusta_mapbox_token = os.environ.get('MAPBOX_ACCESS_TOKEN')
 google_maps_api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
+gohighlevel_api_key = os.environ.get('GOHIGHLEVEL_API_KEY')
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
-stripe_public_key = os.environ.get('STRIPE_PUBLIC_KEY')  # To expose for front-end, if needed
+stripe_public_key = os.environ.get('STRIPE_PUBLIC_KEY')  # If needed for the front-end
 
 # Create Flask app
 app = Flask(__name__)
@@ -90,6 +91,32 @@ def calculate_pricing(turf_sq_ft):
     logging.info(f"Calculated pricing: {json.dumps(pricing_info, indent=4)}")
     return pricing_info
 
+# Function to create/update GoHighLevel contact
+def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
+    url = "https://rest.gohighlevel.com/v1/contacts/"
+    headers = {
+        "Authorization": f"Bearer {gohighlevel_api_key}",
+        "Content-Type": "application/json"
+    }
+    contact_data = {
+        "firstName": first_name,
+        "lastName": last_name,
+        "email": email,
+        "phone": phone,
+        "address1": address,
+        "latitude": lat,
+        "longitude": lon,
+        "customField": pricing_info
+    }
+    response = requests.post(url, headers=headers, json=contact_data)
+    if response.status_code in [200, 201]:
+        contact = response.json()
+        logging.info("Successfully created/updated contact.")
+        return contact.get("contact", {}).get("id")
+    else:
+        logging.error(f"Error creating/updating contact: {response.status_code} - {response.text}")
+        return None
+
 # Function to create a Stripe product
 def create_stripe_product(product_name, price):
     try:
@@ -153,7 +180,8 @@ def calculate():
         if isinstance(turf_sq_ft, str):
             return jsonify({"error": turf_sq_ft}), 400
         pricing_info = calculate_pricing(turf_sq_ft)
-
+        contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
+        
         # Dynamically create Stripe products for each pricing item
         stripe_products = {}
         for product_name, price in pricing_info.items():
@@ -165,6 +193,7 @@ def calculate():
         return jsonify({
             "turf_sq_ft": turf_sq_ft,
             "pricing_info": pricing_info,
+            "contact_id": contact_id,
             "stripe_products": stripe_products
         })
     return jsonify({"error": "Failed to process request."}), 400
