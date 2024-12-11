@@ -119,7 +119,14 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
             "address1": address,
             "latitude": lat,
             "longitude": lon,
-            "customField": pricing_info
+            "customFields": [
+                {"name": "recurring_maintenance_biweekly_price", "value": pricing_info.get("recurring_maintenance_biweekly_price")},
+                {"name": "recurring_maintenance_weekly_price", "value": pricing_info.get("recurring_maintenance_weekly_price")},
+                {"name": "one_time_mow_price", "value": pricing_info.get("one_time_mow_price")},
+                {"name": "full_service_biweekly_price", "value": pricing_info.get("full_service_biweekly_price")},
+                {"name": "full_service_weekly_price", "value": pricing_info.get("full_service_weekly_price")},
+                {"name": "turf_sq_ft", "value": pricing_info.get("turf_sq_ft")},
+            ]
         }
         response = requests.post(url, headers=headers, json=contact_data)
         if response.status_code in [200, 201]:
