@@ -189,29 +189,19 @@ def create_checkout_session():
         phone = customer_data.get('phone', '').strip()
         address = customer_data.get('address', '').strip()
 
-        # Ensure the required customer data is provided
-        if not all([first_name, last_name, email]):
-            return jsonify({"error": "First name, last name, and email are required to create a customer."}), 400
-
         # Create a Stripe Customer
-        customer_id = None
         try:
             customer = stripe.Customer.create(
                 name=f"{first_name} {last_name}",
                 email=email,
                 phone=phone,
-                address={
-                    "line1": address
-                } if address else None
+                metadata={"address": address}  # You can attach the address as metadata
             )
             customer_id = customer.id
             logging.info(f"Stripe customer created with ID: {customer_id}")
-        except stripe.error.StripeError as e:
-            logging.error(f"Stripe error creating customer: {str(e)}")
-            return jsonify({"error": f"Failed to create customer: {str(e)}"}), 500
-        except Exception as e:
-            logging.error(f"Unexpected error creating customer: {str(e)}")
-            return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        except Exception as customer_error:
+            logging.warning(f"Error creating Stripe customer: {str(customer_error)}")
+            return jsonify({"error": f"Failed to create customer: {str(customer_error)}"}), 500
 
         # Create Stripe Checkout Session
         try:
@@ -223,23 +213,21 @@ def create_checkout_session():
                         'product_data': {
                             'name': 'Lawn Service',
                         },
-                        'unit_amount': int(price),
+                        'unit_amount': int(price),  # Price should be in cents
                     },
                     'quantity': 1,
                 }],
                 mode='payment',
-                customer=customer_id,  # Attach the created customer
+                customer=customer_id,  # Attach the customer to the session
                 success_url='https://pricing.greenlawnaugusta.com/success',
                 cancel_url='https://pricing.greenlawnaugusta.com/cancel',
             )
+
             return jsonify({'id': session.id})
-        except stripe.error.StripeError as e:
-            logging.error(f"Stripe error creating checkout session: {str(e)}")
-            return jsonify({"error": f"Failed to create checkout session: {str(e)}"}), 500
-        except Exception as e:
-            logging.error(f"Unexpected error creating checkout session: {str(e)}")
-            return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        except Exception as session_error:
+            logging.error(f"Error creating Stripe Checkout session: {str(session_error)}")
+            return jsonify({'error': f"Failed to create session: {str(session_error)}"}), 500
 
     except Exception as e:
-        logging.error(f"Error processing request: {str(e)}")
+        logging.error(f"Error in create-checkout-session endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500
