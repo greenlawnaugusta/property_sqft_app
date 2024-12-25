@@ -84,8 +84,24 @@ def calculate_pricing(turf_sq_ft):
         "one_time_mow_price": base_price * 1.15,
         "full_service_biweekly_price": base_price * 1.25,
         "full_service_weekly_price": base_price * 1.25 * 0.90,
+        "weed_control_1_price": base_price * 1.1,
+        "weed_control_2_price": base_price * 1.15,
+        "weed_control_3_price": base_price * 1.2,
         "turf_sq_ft": turf_sq_ft,
     }
+
+# Function to create Stripe product and price
+def create_stripe_product_and_price(product_name, price):
+    try:
+        product = stripe.Product.create(name=product_name)
+        stripe.Price.create(
+            product=product.id,
+            unit_amount=int(price * 100),  # Stripe uses cents
+            currency="usd",
+        )
+        logging.info(f"Stripe product and price created: {product_name}")
+    except Exception as e:
+        logging.error(f"Error creating Stripe product and price for {product_name}: {str(e)}")
 
 # Function to create/update GoHighLevel contact
 def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
@@ -103,7 +119,14 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
             "address1": address,
             "latitude": lat,
             "longitude": lon,
-            "customField": pricing_info
+            "customFields": [
+                {"name": "recurring_maintenance_biweekly_price", "value": pricing_info.get("recurring_maintenance_biweekly_price")},
+                {"name": "recurring_maintenance_weekly_price", "value": pricing_info.get("recurring_maintenance_weekly_price")},
+                {"name": "one_time_mow_price", "value": pricing_info.get("one_time_mow_price")},
+                {"name": "full_service_biweekly_price", "value": pricing_info.get("full_service_biweekly_price")},
+                {"name": "full_service_weekly_price", "value": pricing_info.get("full_service_weekly_price")},
+                {"name": "turf_sq_ft", "value": pricing_info.get("turf_sq_ft")},
+            ]
         }
         response = requests.post(url, headers=headers, json=contact_data)
         if response.status_code in [200, 201]:
@@ -136,6 +159,12 @@ def calculate():
             return jsonify({"error": turf_sq_ft}), 400
 
         pricing_info = calculate_pricing(turf_sq_ft)
+
+        # Create Stripe products and prices
+        for product_name, price in pricing_info.items():
+            if product_name != "turf_sq_ft":  # Skip turf_sq_ft as it's not a price
+                create_stripe_product_and_price(product_name.replace("_", " ").title(), price)
+
         contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
 
         return jsonify({
