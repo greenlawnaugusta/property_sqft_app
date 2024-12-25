@@ -14,7 +14,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
-stripe.api_key = os.environ.get
+stripe.api_key = os.environ.get('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')
+
 # Create Flask app
 app = Flask(__name__)
 CORS(app)
@@ -206,9 +207,8 @@ def create_checkout_session():
             }],
             mode='payment',
             customer=customer.id,
-            success_url='	
-https://pricing.greenlawnaugusta.com/home-page?contact_id={contact_id}&first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&address={address}&turf_sq_ft={turf_sq_ft}&recurring_maintenance_biweekly_price={recurring_maintenance_biweekly_price}&recurring_maintenance_weekly_price={recurring_maintenance_weekly_price}&one_time_mow_price={one_time_mow_price}&full_service_biweekly_price={full_service_biweekly_price}&full_service_weekly_price={full_service_weekly_price}&weed_control_1_price={weed_control_1_price}&weed_control_2_price={weed_control_2_price}&weed_control_3_price={weed_control_3_price}',
-            cancel_url='https://pricing.greenlawnaugusta.com/home-page',
+            success_url='https://pricing.greenlawnaugusta.com/home-page?contact_id={contact_id}&first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&address={address}&turf_sq_ft={turf_sq_ft}&recurring_maintenance_biweekly_price={recurring_maintenance_biweekly_price}&recurring_maintenance_weekly_price={recurring_maintenance_weekly_price}&one_time_mow_price={one_time_mow_price}&full_service_biweekly_price={full_service_biweekly_price}&full_service_weekly_price={full_service_weekly_price}&weed_control_1_price={weed_control_1_price}&weed_control_2_price={weed_control_2_price}&weed_control_3_price={weed_control_3_price}',
+            cancel_url='https://yourdomain.com/cancel',
         )
 
         return jsonify({'id': session.id})
