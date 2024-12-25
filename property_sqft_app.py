@@ -175,8 +175,8 @@ def calculate():
 def create_checkout_session():
     try:
         data = request.json
-        price = data.get('price')  # Price in cents
-        customer_data = data.get('customerData')  # Customer data from the form
+        price = data.get('price')
+        customer_data = data.get('customerData')
 
         # Validate required fields
         if not all([price, customer_data]):
@@ -195,29 +195,13 @@ def create_checkout_session():
                 name=f"{first_name} {last_name}",
                 email=email,
                 phone=phone,
-                metadata={"address": address}  # Attach address as metadata
+                metadata={"address": address}  # You can attach the address as metadata
             )
             customer_id = customer.id
             logging.info(f"Stripe customer created with ID: {customer_id}")
         except Exception as customer_error:
-            logging.error(f"Error creating Stripe customer: {str(customer_error)}")
+            logging.warning(f"Error creating Stripe customer: {str(customer_error)}")
             return jsonify({"error": f"Failed to create customer: {str(customer_error)}"}), 500
-
-        # Create Stripe Product
-        try:
-            product = stripe.Product.create(
-                name="Lawn Service",
-                description=f"Lawn service for {first_name} {last_name} at {address}",
-                metadata={
-                    "customer_email": email,
-                    "customer_phone": phone
-                }
-            )
-            product_id = product.id
-            logging.info(f"Stripe product created with ID: {product_id}")
-        except Exception as product_error:
-            logging.error(f"Error creating Stripe product: {str(product_error)}")
-            return jsonify({"error": f"Failed to create product: {str(product_error)}"}), 500
 
         # Create Stripe Checkout Session
         try:
@@ -227,22 +211,22 @@ def create_checkout_session():
                     'price_data': {
                         'currency': 'usd',
                         'product_data': {
-                            'name': "Lawn Service",
-                            'description': f"Lawn service for {first_name} {last_name}",
+                            'name': 'Lawn Service',
                         },
-                        'unit_amount': int(price),  # Ensure price is in cents
+                        'unit_amount': int(price),  # Price should be in cents
                     },
                     'quantity': 1,
                 }],
                 mode='payment',
-                customer=customer_id,  # Attach the customer
+                customer=customer_id,  # Attach the customer to the session
                 success_url='https://pricing.greenlawnaugusta.com/success',
                 cancel_url='https://pricing.greenlawnaugusta.com/cancel',
             )
+
             return jsonify({'id': session.id})
         except Exception as session_error:
             logging.error(f"Error creating Stripe Checkout session: {str(session_error)}")
-            return jsonify({'error': f"Failed to create checkout session: {str(session_error)}"}), 500
+            return jsonify({'error': f"Failed to create session: {str(session_error)}"}), 500
 
     except Exception as e:
         logging.error(f"Error in create-checkout-session endpoint: {str(e)}")
