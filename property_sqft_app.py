@@ -183,16 +183,21 @@ def create_checkout_session():
             return jsonify({"error": "Price and customer data are required."}), 400
 
         # Extract customer details
-        first_name = customer_data.get('first_name', '')
-        last_name = customer_data.get('last_name', '')
-        email = customer_data.get('email', '')
-        phone = customer_data.get('phone', '')
-        address = customer_data.get('address', '')
+        first_name = customer_data.get('first_name', '').strip()
+        last_name = customer_data.get('last_name', '').strip()
+        email = customer_data.get('email', '').strip()
+        phone = customer_data.get('phone', '').strip()
+        address = customer_data.get('address', '').strip()
 
-        # Create a Stripe Customer (Optional)
+        # Ensure the required customer data is provided
+        if not all([first_name, last_name, email]):
+            return jsonify({"error": "First name, last name, and email are required to create a customer."}), 400
+
+        # Create a Stripe Customer
+        customer_id = None
         try:
             customer = stripe.Customer.create(
-                name=f"{first_name} {last_name}".strip(),
+                name=f"{first_name} {last_name}",
                 email=email,
                 phone=phone,
                 address={
@@ -201,30 +206,40 @@ def create_checkout_session():
             )
             customer_id = customer.id
             logging.info(f"Stripe customer created with ID: {customer_id}")
-        except Exception as customer_error:
-            logging.warning(f"Error creating Stripe customer: {str(customer_error)}")
-            customer_id = None
+        except stripe.error.StripeError as e:
+            logging.error(f"Stripe error creating customer: {str(e)}")
+            return jsonify({"error": f"Failed to create customer: {str(e)}"}), 500
+        except Exception as e:
+            logging.error(f"Unexpected error creating customer: {str(e)}")
+            return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
         # Create Stripe Checkout Session
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': 'Lawn Service',
+        try:
+            session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=[{
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {
+                            'name': 'Lawn Service',
+                        },
+                        'unit_amount': int(price),
                     },
-                    'unit_amount': int(price),
-                },
-                'quantity': 1,
-            }],
-            mode='payment',
-            customer=customer_id if customer_id else None,  # Attach the customer if created
-            success_url='https://pricing.greenlawnaugusta.com/success',
-            cancel_url='https://pricing.greenlawnaugusta.com/cancel',
-        )
+                    'quantity': 1,
+                }],
+                mode='payment',
+                customer=customer_id,  # Attach the created customer
+                success_url='https://pricing.greenlawnaugusta.com/success',
+                cancel_url='https://pricing.greenlawnaugusta.com/cancel',
+            )
+            return jsonify({'id': session.id})
+        except stripe.error.StripeError as e:
+            logging.error(f"Stripe error creating checkout session: {str(e)}")
+            return jsonify({"error": f"Failed to create checkout session: {str(e)}"}), 500
+        except Exception as e:
+            logging.error(f"Unexpected error creating checkout session: {str(e)}")
+            return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
-        return jsonify({'id': session.id})
     except Exception as e:
-        logging.error(f"Error creating Stripe Checkout session: {str(e)}")
+        logging.error(f"Error processing request: {str(e)}")
         return jsonify({'error': str(e)}), 500
