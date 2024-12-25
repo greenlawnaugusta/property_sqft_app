@@ -90,19 +90,6 @@ def calculate_pricing(turf_sq_ft):
         "turf_sq_ft": turf_sq_ft,
     }
 
-# Function to create Stripe product and price
-def create_stripe_product_and_price(product_name, price):
-    try:
-        product = stripe.Product.create(name=product_name)
-        stripe.Price.create(
-            product=product.id,
-            unit_amount=int(price * 100),  # Stripe uses cents
-            currency="usd",
-        )
-        logging.info(f"Stripe product and price created: {product_name}")
-    except Exception as e:
-        logging.error(f"Error creating Stripe product and price for {product_name}: {str(e)}")
-
 # Function to create/update GoHighLevel contact
 def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
     try:
@@ -159,12 +146,6 @@ def calculate():
             return jsonify({"error": turf_sq_ft}), 400
 
         pricing_info = calculate_pricing(turf_sq_ft)
-
-        # Create Stripe products and prices
-        for product_name, price in pricing_info.items():
-            if product_name != "turf_sq_ft":  # Skip turf_sq_ft as it's not a price
-                create_stripe_product_and_price(product_name.replace("_", " ").title(), price)
-
         contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
 
         return jsonify({
@@ -175,6 +156,34 @@ def calculate():
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    try:
+        data = request.json
+        price = data['price']
+        customer_data = data['customerData']
+
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': 'Lawn Service',
+                    },
+                    'unit_amount': int(price * 100),
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url='https://pricing.greenlawnaugusta.com/success',
+            cancel_url='https://pricing.greenlawnaugusta.com/cancel',
+        )
+        return jsonify({'id': session.id})
+    except Exception as e:
+        logging.error(f"Error creating Stripe Checkout session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
