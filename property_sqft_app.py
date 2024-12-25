@@ -98,6 +98,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
             "Authorization": f"Bearer {gohighlevel_api_key}",
             "Content-Type": "application/json"
         }
+        # Ensure custom field names exactly match the GoHighLevel configuration
         contact_data = {
             "firstName": first_name,
             "lastName": last_name,
@@ -106,15 +107,20 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
             "address1": address,
             "latitude": lat,
             "longitude": lon,
-            "customFields": [
-                {"name": "recurring_maintenance_biweekly_price", "value": pricing_info.get("recurring_maintenance_biweekly_price")},
-                {"name": "recurring_maintenance_weekly_price", "value": pricing_info.get("recurring_maintenance_weekly_price")},
-                {"name": "one_time_mow_price", "value": pricing_info.get("one_time_mow_price")},
-                {"name": "full_service_biweekly_price", "value": pricing_info.get("full_service_biweekly_price")},
-                {"name": "full_service_weekly_price", "value": pricing_info.get("full_service_weekly_price")},
-                {"name": "turf_sq_ft", "value": pricing_info.get("turf_sq_ft")},
-            ]
+            "customField": {  # Match GoHighLevel custom field names exactly
+                "recurring_maintenance_biweekly_price": pricing_info.get("recurring_maintenance_biweekly_price"),
+                "recurring_maintenance_weekly_price": pricing_info.get("recurring_maintenance_weekly_price"),
+                "one_time_mow_price": pricing_info.get("one_time_mow_price"),
+                "full_service_biweekly_price": pricing_info.get("full_service_biweekly_price"),
+                "full_service_weekly_price": pricing_info.get("full_service_weekly_price"),
+                "weed_control_1_price": pricing_info.get("weed_control_1_price"),
+                "weed_control_2_price": pricing_info.get("weed_control_2_price"),
+                "weed_control_3_price": pricing_info.get("weed_control_3_price"),
+                "turf_sq_ft": pricing_info.get("turf_sq_ft"),
+            }
         }
+        
+        # POST request to create/update the contact in GoHighLevel
         response = requests.post(url, headers=headers, json=contact_data)
         if response.status_code in [200, 201]:
             contact = response.json()
@@ -127,6 +133,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         logging.error(f"Error in GoHighLevel API: {str(e)}")
         return None
 
+# Pricing Calculation Endpoint
 @app.route('/calculate', methods=['POST'])
 def calculate():
     try:
