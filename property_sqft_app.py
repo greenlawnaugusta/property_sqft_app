@@ -182,6 +182,29 @@ def create_checkout_session():
         if not all([price, customer_data]):
             return jsonify({"error": "Price and customer data are required."}), 400
 
+        # Extract customer details
+        first_name = customer_data.get('first_name', '')
+        last_name = customer_data.get('last_name', '')
+        email = customer_data.get('email', '')
+        phone = customer_data.get('phone', '')
+        address = customer_data.get('address', '')
+
+        # Create a Stripe Customer (Optional)
+        try:
+            customer = stripe.Customer.create(
+                name=f"{first_name} {last_name}".strip(),
+                email=email,
+                phone=phone,
+                address={
+                    "line1": address
+                } if address else None
+            )
+            customer_id = customer.id
+            logging.info(f"Stripe customer created with ID: {customer_id}")
+        except Exception as customer_error:
+            logging.warning(f"Error creating Stripe customer: {str(customer_error)}")
+            customer_id = None
+
         # Create Stripe Checkout Session
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
@@ -196,9 +219,11 @@ def create_checkout_session():
                 'quantity': 1,
             }],
             mode='payment',
+            customer=customer_id if customer_id else None,  # Attach the customer if created
             success_url='https://pricing.greenlawnaugusta.com/success',
             cancel_url='https://pricing.greenlawnaugusta.com/cancel',
         )
+
         return jsonify({'id': session.id})
     except Exception as e:
         logging.error(f"Error creating Stripe Checkout session: {str(e)}")
