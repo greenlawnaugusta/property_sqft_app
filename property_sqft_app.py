@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
-stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', 'your_default_stripe_secret_key_here')
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
 
 # Create Flask app
 app = Flask(__name__)
@@ -90,41 +90,48 @@ def calculate_pricing(turf_sq_ft):
         "turf_sq_ft": turf_sq_ft,
     }
 
-# Endpoint to return service prices dynamically
-@app.route('/calculate-prices', methods=['POST'])
-def calculate_prices():
+# Function to create/update GoHighLevel contact
+def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
     try:
-        # Parse incoming data
-        data = request.json
-        turf_sq_ft = data.get('turf_sq_ft')  # Ensure turf_sq_ft is passed by the frontend
-
-        if not turf_sq_ft:
-            return jsonify({"error": "Turf square footage is required for price calculation."}), 400
-
-        # Perform dynamic price calculation
-        pricing_info = calculate_pricing(float(turf_sq_ft))
-
-        # Return all dynamically calculated prices
-        prices = {
-            "services": [
-                {"name": "Weekly Mowing", "price": pricing_info["recurring_maintenance_weekly_price"]},
-                {"name": "Bi-Weekly Mowing", "price": pricing_info["recurring_maintenance_biweekly_price"]},
-                {"name": "One-Time Mow", "price": pricing_info["one_time_mow_price"]},
-                {"name": "Full Service Weekly", "price": pricing_info["full_service_weekly_price"]},
-                {"name": "Full Service Bi-Weekly", "price": pricing_info["full_service_biweekly_price"]},
-            ],
-            "weed_control": [
-                {"name": "Weed Control 1", "price": pricing_info["weed_control_1_price"]},
-                {"name": "Weed Control 2", "price": pricing_info["weed_control_2_price"]},
-                {"name": "Weed Control 3", "price": pricing_info["weed_control_3_price"]},
-            ],
-            "turf_sq_ft": pricing_info["turf_sq_ft"],  # Include the calculated turf area for display
+        url = "https://rest.gohighlevel.com/v1/contacts/"
+        headers = {
+            "Authorization": f"Bearer {gohighlevel_api_key}",
+            "Content-Type": "application/json"
         }
-
-        return jsonify(prices)
+        # Ensure custom field names exactly match the GoHighLevel configuration
+        contact_data = {
+            "firstName": first_name,
+            "lastName": last_name,
+            "email": email,
+            "phone": phone,
+            "address1": address,
+            "latitude": lat,
+            "longitude": lon,
+            "customField": {  # Match GoHighLevel custom field names exactly
+                "recurring_maintenance_biweekly_price": pricing_info.get("recurring_maintenance_biweekly_price"),
+                "recurring_maintenance_weekly_price": pricing_info.get("recurring_maintenance_weekly_price"),
+                "one_time_mow_price": pricing_info.get("one_time_mow_price"),
+                "full_service_biweekly_price": pricing_info.get("full_service_biweekly_price"),
+                "full_service_weekly_price": pricing_info.get("full_service_weekly_price"),
+                "weed_control_1_price": pricing_info.get("weed_control_1_price"),
+                "weed_control_2_price": pricing_info.get("weed_control_2_price"),
+                "weed_control_3_price": pricing_info.get("weed_control_3_price"),
+                "turf_sq_ft": pricing_info.get("turf_sq_ft"),
+            }
+        }
+        
+        # POST request to create/update the contact in GoHighLevel
+        response = requests.post(url, headers=headers, json=contact_data)
+        if response.status_code in [200, 201]:
+            contact = response.json()
+            logging.info("Successfully created/updated contact.")
+            return contact.get("contact", {}).get("id")
+        else:
+            logging.error(f"Error creating/updating contact: {response.status_code} - {response.text}")
+            return None
     except Exception as e:
-        logging.error(f"Error in calculate-prices endpoint: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Error in GoHighLevel API: {str(e)}")
+        return None
 
 # Pricing Calculation Endpoint
 @app.route('/calculate', methods=['POST'])
@@ -150,15 +157,20 @@ def calculate():
             return jsonify({"error": turf_sq_ft}), 400
 
         pricing_info = calculate_pricing(turf_sq_ft)
+        contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
+
+        if not contact_id:
+            return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
+
         return jsonify({
             "turf_sq_ft": turf_sq_ft,
             "pricing_info": pricing_info,
+            "contact_id": contact_id
         })
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# Create Checkout Session
 @app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
     try:
@@ -167,54 +179,39 @@ def create_checkout_session():
         customer_data = data.get('customerData')
 
         if not all([service_price, customer_data]):
-            logging.error("Missing service_price or customerData.")
             return jsonify({"error": "Service price and customer data are required."}), 400
 
         # Extract customer details
-        first_name = customer_data.get('first_name', '').strip()
-        last_name = customer_data.get('last_name', '').strip()
-        email = customer_data.get('email', '').strip()
+        first_name = customer_data.get('first_name', '')
+        last_name = customer_data.get('last_name', '')
+        email = customer_data.get('email', '')
 
         # Create Stripe Customer
-        try:
-            customer = stripe.Customer.create(
-                name=f"{first_name} {last_name}",
-                email=email,
-            )
-            customer_id = customer.id
-            logging.info(f"Stripe customer created: {customer_id}")
-        except Exception as e:
-            logging.error(f"Error creating Stripe customer: {str(e)}")
-            return jsonify({"error": "Failed to create customer in Stripe."}), 500
+        customer = stripe.Customer.create(
+            name=f"{first_name} {last_name}",
+            email=email,
+        )
 
-        # Create Stripe Checkout Session
-        try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                line_items=[{
-                    'price_data': {
-                        'currency': 'usd',
-                        'product_data': {
-                            'name': 'Lawn Service',
-                        },
-                        'unit_amount': int(service_price),  # Price should be in cents
+        # Create Checkout Session with selected service price
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': 'Lawn Service',
                     },
-                    'quantity': 1,
-                }],
-                mode='payment',
-                customer=customer_id,
-                success_url='https://yourdomain.com/success',
-                cancel_url='https://yourdomain.com/cancel',
-            )
-            logging.info(f"Stripe Checkout Session created: {session.id}")
-            return jsonify({'id': session.id})
-        except Exception as e:
-            logging.error(f"Error creating Stripe checkout session: {str(e)}")
-            return jsonify({'error': "Failed to create checkout session."}), 500
+                    'unit_amount': int(service_price),
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            customer=customer.id,
+            success_url='https://yourdomain.com/success',
+            cancel_url='https://yourdomain.com/cancel',
+        )
 
+        return jsonify({'id': session.id})
     except Exception as e:
-        logging.error(f"Unhandled exception in create-checkout-session: {str(e)}")
+        logging.error(f"Error creating checkout session: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
