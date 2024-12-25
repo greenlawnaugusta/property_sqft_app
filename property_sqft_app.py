@@ -144,6 +144,10 @@ def calculate():
         email = data.get('email')
         phone = data.get('phone')
 
+        # Validate incoming data
+        if not all([address, first_name, last_name, email, phone]):
+            return jsonify({"error": "All fields are required."}), 400
+
         lat, lon = get_lat_lon(address)
         if lat is None or lon is None:
             return jsonify({"error": "Geocoding failed for the provided address."}), 400
@@ -154,6 +158,9 @@ def calculate():
 
         pricing_info = calculate_pricing(turf_sq_ft)
         contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
+
+        if not contact_id:
+            return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
 
         return jsonify({
             "turf_sq_ft": turf_sq_ft,
@@ -168,9 +175,14 @@ def calculate():
 def create_checkout_session():
     try:
         data = request.json
-        price = data['price']
-        customer_data = data['customerData']
+        price = data.get('price')
+        customer_data = data.get('customerData')
 
+        # Validate required fields
+        if not all([price, customer_data]):
+            return jsonify({"error": "Price and customer data are required."}), 400
+
+        # Create Stripe Checkout Session
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
@@ -179,7 +191,7 @@ def create_checkout_session():
                     'product_data': {
                         'name': 'Lawn Service',
                     },
-                    'unit_amount': int(price * 100),
+                    'unit_amount': int(price),
                 },
                 'quantity': 1,
             }],
@@ -191,7 +203,3 @@ def create_checkout_session():
     except Exception as e:
         logging.error(f"Error creating Stripe Checkout session: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
