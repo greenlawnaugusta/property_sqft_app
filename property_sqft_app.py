@@ -119,7 +119,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
                 "turf_sq_ft": pricing_info.get("turf_sq_ft"),
             }
         }
-        
+
         # POST request to create/update the contact in GoHighLevel
         response = requests.post(url, headers=headers, json=contact_data)
         if response.status_code in [200, 201]:
