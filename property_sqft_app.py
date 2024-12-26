@@ -175,8 +175,6 @@ def calculate():
 def create_checkout_session():
     try:
         data = request.json
-
-        # Extract required data
         service_price = data.get('service_price')
         customer_data = data.get('customerData')
 
@@ -191,29 +189,13 @@ def create_checkout_session():
         address = customer_data.get('address', '')
         turf_sq_ft = customer_data.get('turf_sq_ft', 0)
 
-        # Validate customer data
-        if not all([first_name, last_name, email, phone, address]):
-            return jsonify({"error": "Missing customer information."}), 400
-
-        # Create GoHighLevel contact
-        pricing_info = calculate_pricing(turf_sq_ft)
-        contact_id = create_or_update_gohighlevel_contact(
-            first_name, last_name, email, phone, address, None, None, pricing_info
-        )
-
-        if not contact_id:
-            logging.error("Failed to create/update contact in GoHighLevel.")
-            return jsonify({"error": "Failed to create/update contact in GoHighLevel."}), 500
-
         # Create Stripe Customer
-        logging.info(f"Creating Stripe customer for {first_name} {last_name} with email {email}")
         customer = stripe.Customer.create(
             name=f"{first_name} {last_name}",
             email=email,
         )
 
         # Create Checkout Session
-        logging.info(f"Creating Stripe session for price: {service_price}")
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
@@ -226,19 +208,18 @@ def create_checkout_session():
             }],
             mode='payment',
             customer=customer.id,
-            success_url=f"https://pricing.greenlawnaugusta.com/success?contact_id={contact_id}",
-            cancel_url=f"https://pricing.greenlawnaugusta.com/cancel?contact_id={contact_id}",
+            success_url=f"https://yourdomain.com/success?session_id={session.id}",
+            cancel_url=f"https://yourdomain.com/cancel?session_id={session.id}",
         )
 
         # Generate Trigger Link
         trigger_link = (
-            f"https://pricing.greenlawnaugusta.com/home-page?contact_id={contact_id}&"
-            f"first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&"
-            f"address={address}&service_price={service_price}&stripe_customer_id={customer.id}&"
+            f"https://pricing.greenlawnaugusta.com/home-page?first_name={first_name}&last_name={last_name}&email={email}&"
+            f"phone={phone}&address={address}&turf_sq_ft={turf_sq_ft}&service_price={service_price}&stripe_customer_id={customer.id}&"
             f"stripe_session_id={session.id}"
         )
 
-        return jsonify({'session_id': session.id, 'trigger_link': trigger_link})
+        return jsonify({'id': session.id, 'trigger_link': trigger_link})
     except Exception as e:
         logging.error(f"Error creating checkout session: {str(e)}")
         return jsonify({'error': str(e)}), 500
