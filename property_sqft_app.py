@@ -218,15 +218,26 @@ def create_checkout_session():
             customer=customer.id,
             success_url='https://yourdomain.com/success',
             cancel_url='https://yourdomain.com/cancel',
-
         )
 
         # Generate Trigger Link
         trigger_link = (
-            f"https://pricing.greenlawnaugusta.com/home-page?contact_id={contact_id}&"
-            f"first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&"
-            f"address={address}&service_price={service_price}&stripe_customer_id={customer.id}&"
-            f"stripe_session_id={session.id}"
+            f"https://pricing.greenlawnaugusta.com/home-page?"
+            f"contact_id={contact_id}&"
+            f"first_name={first_name}&"
+            f"last_name={last_name}&"
+            f"email={email}&"
+            f"phone={phone}&"
+            f"address={address}&"
+            f"turf_sq_ft={pricing_info.get('turf_sq_ft')}&"
+            f"recurring_maintenance_biweekly_price={pricing_info.get('recurring_maintenance_biweekly_price')}&"
+            f"recurring_maintenance_weekly_price={pricing_info.get('recurring_maintenance_weekly_price')}&"
+            f"one_time_mow_price={pricing_info.get('one_time_mow_price')}&"
+            f"full_service_biweekly_price={pricing_info.get('full_service_biweekly_price')}&"
+            f"full_service_weekly_price={pricing_info.get('full_service_weekly_price')}&"
+            f"weed_control_1_price={pricing_info.get('weed_control_1_price')}&"
+            f"weed_control_2_price={pricing_info.get('weed_control_2_price')}&"
+            f"weed_control_3_price={pricing_info.get('weed_control_3_price')}"
         )
 
         return jsonify({'session_id': session.id, 'trigger_link': trigger_link})
