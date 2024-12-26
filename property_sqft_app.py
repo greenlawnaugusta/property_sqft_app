@@ -175,6 +175,8 @@ def calculate():
 def create_checkout_session():
     try:
         data = request.json
+
+        # Extract required data
         service_price = data.get('service_price')
         customer_data = data.get('customerData')
 
@@ -187,19 +189,28 @@ def create_checkout_session():
         email = customer_data.get('email', '')
         phone = customer_data.get('phone', '')
         address = customer_data.get('address', '')
+        turf_sq_ft = customer_data.get('turf_sq_ft', 0)
+
+        # Validate customer data
+        if not all([first_name, last_name, email, phone, address]):
+            return jsonify({"error": "Missing customer information."}), 400
 
         # Create GoHighLevel contact
-        pricing_info = calculate_pricing(customer_data.get('turf_sq_ft', 0))
+        pricing_info = calculate_pricing(turf_sq_ft)
         contact_id = create_or_update_gohighlevel_contact(
             first_name, last_name, email, phone, address, None, None, pricing_info
         )
 
         if not contact_id:
-            return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
+            logging.error("Failed to create/update contact in GoHighLevel.")
+            return jsonify({"error": "Failed to create/update contact in GoHighLevel."}), 500
 
         # Create Stripe Customer
         logging.info(f"Creating Stripe customer for {first_name} {last_name} with email {email}")
-        customer = stripe.Customer.create(name=f"{first_name} {last_name}", email=email)
+        customer = stripe.Customer.create(
+            name=f"{first_name} {last_name}",
+            email=email,
+        )
 
         # Create Checkout Session
         logging.info(f"Creating Stripe session for price: {service_price}")
@@ -227,7 +238,7 @@ def create_checkout_session():
             f"stripe_session_id={session.id}"
         )
 
-        return jsonify({'id': session.id, 'trigger_link': trigger_link})
+        return jsonify({'session_id': session.id, 'trigger_link': trigger_link})
     except Exception as e:
         logging.error(f"Error creating checkout session: {str(e)}")
         return jsonify({'error': str(e)}), 500
