@@ -175,10 +175,10 @@ def calculate():
 def create_checkout_session():
     try:
         data = request.json
-        service_price = data.get('service_price')  # Service price selected on the checkout page
+        service_price = data.get('service_price')
         customer_data = data.get('customerData')
 
-        if not all([service_price, customer_data]):
+        if not service_price or not customer_data:
             return jsonify({"error": "Service price and customer data are required."}), 400
 
         # Extract customer details
@@ -187,15 +187,9 @@ def create_checkout_session():
         email = customer_data.get('email', '')
         phone = customer_data.get('phone', '')
         address = customer_data.get('address', '')
-        turf_sq_ft = customer_data.get('turf_sq_ft', 0)
-
-        # Calculate pricing if not included
-        if turf_sq_ft and 'pricing_info' not in customer_data:
-            pricing_info = calculate_pricing(turf_sq_ft)
-        else:
-            pricing_info = customer_data.get('pricing_info', {})
 
         # Create GoHighLevel contact
+        pricing_info = calculate_pricing(customer_data.get('turf_sq_ft', 0))
         contact_id = create_or_update_gohighlevel_contact(
             first_name, last_name, email, phone, address, None, None, pricing_info
         )
@@ -204,40 +198,33 @@ def create_checkout_session():
             return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
 
         # Create Stripe Customer
-        customer = stripe.Customer.create(
-            name=f"{first_name} {last_name}",
-            email=email,
-        )
+        logging.info(f"Creating Stripe customer for {first_name} {last_name} with email {email}")
+        customer = stripe.Customer.create(name=f"{first_name} {last_name}", email=email)
 
-        # Create Checkout Session with selected service price
+        # Create Checkout Session
+        logging.info(f"Creating Stripe session for price: {service_price}")
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
                 'price_data': {
                     'currency': 'usd',
-                    'product_data': {
-                        'name': 'Lawn Service',
-                    },
+                    'product_data': {'name': 'Lawn Service'},
                     'unit_amount': int(service_price),
                 },
                 'quantity': 1,
             }],
             mode='payment',
             customer=customer.id,
-            success_url='https://yourdomain.com/success',
-            cancel_url='https://yourdomain.com/cancel',
+            success_url=f"https://pricing.greenlawnaugusta.com/success?contact_id={contact_id}",
+            cancel_url=f"https://pricing.greenlawnaugusta.com/cancel?contact_id={contact_id}",
         )
 
-        # Construct the Trigger Link
-        trigger_link_base = "https://pricing.greenlawnaugusta.com/home-page"
+        # Generate Trigger Link
         trigger_link = (
-            f"{trigger_link_base}?contact_id={contact_id}&first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&address={address}&"
-            f"turf_sq_ft={turf_sq_ft}&recurring_maintenance_biweekly_price={pricing_info['recurring_maintenance_biweekly_price']}&"
-            f"recurring_maintenance_weekly_price={pricing_info['recurring_maintenance_weekly_price']}&"
-            f"one_time_mow_price={pricing_info['one_time_mow_price']}&full_service_biweekly_price={pricing_info['full_service_biweekly_price']}&"
-            f"full_service_weekly_price={pricing_info['full_service_weekly_price']}&weed_control_1_price={pricing_info['weed_control_1_price']}&"
-            f"weed_control_2_price={pricing_info['weed_control_2_price']}&weed_control_3_price={pricing_info['weed_control_3_price']}&"
-            f"stripe_customer_id={customer.id}&stripe_session_id={session.id}"
+            f"https://pricing.greenlawnaugusta.com/home-page?contact_id={contact_id}&"
+            f"first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&"
+            f"address={address}&service_price={service_price}&stripe_customer_id={customer.id}&"
+            f"stripe_session_id={session.id}"
         )
 
         return jsonify({'id': session.id, 'trigger_link': trigger_link})
