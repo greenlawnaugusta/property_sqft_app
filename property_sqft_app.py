@@ -187,7 +187,15 @@ def create_checkout_session():
         email = customer_data.get('email', '')
         phone = customer_data.get('phone', '')
         address = customer_data.get('address', '')
-        turf_sq_ft = customer_data.get('turf_sq_ft', 0)
+
+        # Create GoHighLevel contact (for trigger link)
+        pricing_info = calculate_pricing(customer_data.get('turf_sq_ft', 0))
+        contact_id = create_or_update_gohighlevel_contact(
+            first_name, last_name, email, phone, address, None, None, pricing_info
+        )
+
+        if not contact_id:
+            return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
 
         # Create Stripe Customer
         customer = stripe.Customer.create(
@@ -208,18 +216,19 @@ def create_checkout_session():
             }],
             mode='payment',
             customer=customer.id,
-            success_url=f"https://yourdomain.com/success?session_id={session.id}",
-            cancel_url=f"https://yourdomain.com/cancel?session_id={session.id}",
+            success_url=f"https://pricing.greenlawnaugusta.com/success?contact_id={contact_id}",
+            cancel_url=f"https://pricing.greenlawnaugusta.com/cancel?contact_id={contact_id}",
         )
 
         # Generate Trigger Link
         trigger_link = (
-            f"https://pricing.greenlawnaugusta.com/home-page?first_name={first_name}&last_name={last_name}&email={email}&"
-            f"phone={phone}&address={address}&turf_sq_ft={turf_sq_ft}&service_price={service_price}&stripe_customer_id={customer.id}&"
+            f"https://pricing.greenlawnaugusta.com/home-page?contact_id={contact_id}&"
+            f"first_name={first_name}&last_name={last_name}&email={email}&phone={phone}&"
+            f"address={address}&service_price={service_price}&stripe_customer_id={customer.id}&"
             f"stripe_session_id={session.id}"
         )
 
-        return jsonify({'id': session.id, 'trigger_link': trigger_link})
+        return jsonify({'session_id': session.id, 'trigger_link': trigger_link})
     except Exception as e:
         logging.error(f"Error creating checkout session: {str(e)}")
         return jsonify({'error': str(e)}), 500
