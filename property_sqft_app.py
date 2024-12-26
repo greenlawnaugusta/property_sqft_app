@@ -189,8 +189,13 @@ def create_checkout_session():
         address = customer_data.get('address', '')
         turf_sq_ft = customer_data.get('turf_sq_ft', 0)
 
+        # Calculate pricing if not included
+        if turf_sq_ft and 'pricing_info' not in customer_data:
+            pricing_info = calculate_pricing(turf_sq_ft)
+        else:
+            pricing_info = customer_data.get('pricing_info', {})
+
         # Create GoHighLevel contact
-        pricing_info = calculate_pricing(turf_sq_ft)
         contact_id = create_or_update_gohighlevel_contact(
             first_name, last_name, email, phone, address, None, None, pricing_info
         )
