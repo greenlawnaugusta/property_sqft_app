@@ -14,7 +14,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 greenlawnaugusta_mapbox_token = 'sk.eyJ1IjoiZ3JlZW5sYXduYXVndXN0YSIsImEiOiJjbTJrNWhqYXQwZDVlMmpwdzd4bDl0bGdqIn0.DFYXkt-2thT24YRg9tEdWg'
 google_maps_api_key = 'AIzaSyBOLtey3T6ug8ZBfvZl-Mu2V9kJpRtcQeo'
 gohighlevel_api_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsb2NhdGlvbl9pZCI6InZKTk5QbW5tT3dGbzZvRFROQ0FNIiwiY29tcGFueV9pZCI6IlZGU0lKQWpDNEdQZzhLY2FuZlJuIiwidmVyc2lvbiI6MSwiaWF0IjoxNzAwNDEyNTU2OTc2LCJzdWIiOiJ1c2VyX2lkIn0.13KR3p9bWk-ImURthHgHZSJIk44MVnOMG8WjamUVf3Y'
-stripe.api_key = os.environ.get('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')
+STRIPE_PUBLIC_KEY = 'pk_live_51OPSgJBjzAiuXy5VmNJUKcpgpLvACac5RJf08tOX1xdMFF1dX09jAAcwNP6rIb50XJPWcmzhk1EApRgdhOHVXb1p00jbSoFD8Y'
+STRIPE_SECRET_KEY = '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'
+
+stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
@@ -98,7 +101,6 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
             "Authorization": f"Bearer {gohighlevel_api_key}",
             "Content-Type": "application/json"
         }
-        # Ensure custom field names exactly match the GoHighLevel configuration
         contact_data = {
             "firstName": first_name,
             "lastName": last_name,
@@ -107,7 +109,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
             "address1": address,
             "latitude": lat,
             "longitude": lon,
-            "customField": {  # Match GoHighLevel custom field names exactly
+            "customField": {
                 "recurring_maintenance_biweekly_price": pricing_info.get("recurring_maintenance_biweekly_price"),
                 "recurring_maintenance_weekly_price": pricing_info.get("recurring_maintenance_weekly_price"),
                 "one_time_mow_price": pricing_info.get("one_time_mow_price"),
@@ -119,8 +121,6 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
                 "turf_sq_ft": pricing_info.get("turf_sq_ft"),
             }
         }
-
-        # POST request to create/update the contact in GoHighLevel
         response = requests.post(url, headers=headers, json=contact_data)
         if response.status_code in [200, 201]:
             contact = response.json()
@@ -133,6 +133,24 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         logging.error(f"Error in GoHighLevel API: {str(e)}")
         return None
 
+# Function to create products in Stripe
+def create_stripe_products(pricing_info):
+    try:
+        products = []
+        for service_name, price in pricing_info.items():
+            if service_name != "turf_sq_ft":
+                product = stripe.Product.create(name=service_name)
+                price_data = stripe.Price.create(
+                    unit_amount=int(price * 100),  # Stripe expects the price in cents
+                    currency="usd",
+                    product=product.id
+                )
+                products.append({"name": service_name, "price_id": price_data.id})
+        return products
+    except Exception as e:
+        logging.error(f"Error creating Stripe products: {str(e)}")
+        return []
+
 # Pricing Calculation Endpoint
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -144,7 +162,6 @@ def calculate():
         email = data.get('email')
         phone = data.get('phone')
 
-        # Validate incoming data
         if not all([address, first_name, last_name, email, phone]):
             return jsonify({"error": "All fields are required."}), 400
 
@@ -153,7 +170,7 @@ def calculate():
             return jsonify({"error": "Geocoding failed for the provided address."}), 400
 
         turf_sq_ft = calculate_turf_area(lat, lon)
-        if isinstance(turf_sq_ft, str):  # If an error message was returned
+        if isinstance(turf_sq_ft, str):
             return jsonify({"error": turf_sq_ft}), 400
 
         pricing_info = calculate_pricing(turf_sq_ft)
@@ -162,10 +179,13 @@ def calculate():
         if not contact_id:
             return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
 
+        stripe_products = create_stripe_products(pricing_info)
+
         return jsonify({
             "turf_sq_ft": turf_sq_ft,
             "pricing_info": pricing_info,
-            "contact_id": contact_id
+            "contact_id": contact_id,
+            "stripe_products": stripe_products
         })
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
@@ -175,72 +195,23 @@ def calculate():
 def create_checkout_session():
     try:
         data = request.json
-        service_price = data.get('service_price')
-        customer_data = data.get('customerData')
+        selected_price_id = data.get('price_id')
 
-        if not service_price or not customer_data:
-            return jsonify({"error": "Service price and customer data are required."}), 400
+        if not selected_price_id:
+            return jsonify({"error": "Price ID is required."}), 400
 
-        # Extract customer details
-        first_name = customer_data.get('first_name', '')
-        last_name = customer_data.get('last_name', '')
-        email = customer_data.get('email', '')
-        phone = customer_data.get('phone', '')
-        address = customer_data.get('address', '')
-
-        # Create GoHighLevel contact (for trigger link)
-        pricing_info = calculate_pricing(customer_data.get('turf_sq_ft', 0))
-        contact_id = create_or_update_gohighlevel_contact(
-            first_name, last_name, email, phone, address, None, None, pricing_info
-        )
-
-        if not contact_id:
-            return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
-
-        # Create Stripe Customer
-        customer = stripe.Customer.create(
-            name=f"{first_name} {last_name}",
-            email=email,
-        )
-
-        # Create Checkout Session
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],
             line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {'name': 'Lawn Service'},
-                    'unit_amount': int(service_price),
-                },
+                'price': selected_price_id,
                 'quantity': 1,
             }],
             mode='payment',
-            customer=customer.id,
             success_url='https://yourdomain.com/success',
             cancel_url='https://yourdomain.com/cancel',
         )
 
-        # Generate Trigger Link
-        trigger_link = (
-            f"https://pricing.greenlawnaugusta.com/home-page?"
-            f"contact_id={contact_id}&"
-            f"first_name={first_name}&"
-            f"last_name={last_name}&"
-            f"email={email}&"
-            f"phone={phone}&"
-            f"address={address}&"
-            f"turf_sq_ft={pricing_info.get('turf_sq_ft')}&"
-            f"recurring_maintenance_biweekly_price={pricing_info.get('recurring_maintenance_biweekly_price')}&"
-            f"recurring_maintenance_weekly_price={pricing_info.get('recurring_maintenance_weekly_price')}&"
-            f"one_time_mow_price={pricing_info.get('one_time_mow_price')}&"
-            f"full_service_biweekly_price={pricing_info.get('full_service_biweekly_price')}&"
-            f"full_service_weekly_price={pricing_info.get('full_service_weekly_price')}&"
-            f"weed_control_1_price={pricing_info.get('weed_control_1_price')}&"
-            f"weed_control_2_price={pricing_info.get('weed_control_2_price')}&"
-            f"weed_control_3_price={pricing_info.get('weed_control_3_price')}"
-        )
-
-        return jsonify({'session_id': session.id, 'trigger_link': trigger_link})
+        return jsonify({"session_id": session.id})
     except Exception as e:
         logging.error(f"Error creating checkout session: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
