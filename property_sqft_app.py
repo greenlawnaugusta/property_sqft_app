@@ -19,19 +19,18 @@ STRIPE_SECRET_KEY = 'sk_live_51OPSgJBjzAiuXy5VgOFG9k7QpI1SrLfP8yfv3kAPE1Nb7oZdwn
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-# Create Flask app
-app = Flask(__name__)
+from flask_cors import CORS
 
-# Configure CORS for specific origin
-CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com"]}})
+# Correct Flask-CORS setup
+CORS(app, resources={r"/*": {"origins": "https://api.leadconnectorhq.com"}}, supports_credentials=True)
 
-# Add additional headers to all responses
+# Remove manual CORS header addition in `after_request`
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
+    # Do NOT set Access-Control-Allow-Origin again if Flask-CORS is used
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 # Handle preflight OPTIONS requests explicitly
