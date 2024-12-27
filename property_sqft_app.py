@@ -46,19 +46,6 @@ def handle_options():
     response.status_code = 200  # HTTP 200 OK
     return response
 
-
-# Handle preflight OPTIONS requests explicitly
-@app.route('/create-products', methods=['OPTIONS'])
-def handle_options():
-    """Handle CORS preflight requests for /create-products"""
-    response = jsonify({'message': 'CORS preflight handled'})
-    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
-    response.status_code = 200  # HTTP 200 OK
-    return response
-
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
     try:
