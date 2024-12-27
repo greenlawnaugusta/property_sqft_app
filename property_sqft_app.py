@@ -23,26 +23,40 @@ stripe.api_key = STRIPE_SECRET_KEY
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "https://api.leadconnectorhq.com"}}, supports_credentials=True)
 
-# Remove manual CORS header addition in `after_request`
-@app.after_request
-def after_request(response):
-    # Do NOT set Access-Control-Allow-Origin again if Flask-CORS is used
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
+@app.route('/create-products', methods=['POST', 'OPTIONS'])
+def create_products():
+    """Handle product creation in Stripe."""
+    if request.method == 'OPTIONS':
+        response = jsonify({'message': 'CORS preflight handled'})
+        response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.status_code = 200
+        return response
 
-# Handle preflight OPTIONS requests explicitly
-@app.route('/create-products', methods=['OPTIONS'])
-def handle_options():
-    """Handle CORS preflight requests for /create-products"""
-    response = jsonify({'message': 'CORS preflight handled'})
-    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
-    response.status_code = 200  # HTTP 200 OK
-    return response
+    try:
+        data = request.json
+        pricing_info = data.get('pricing_info')
+
+        if not pricing_info:
+            return jsonify({"error": "Missing pricing info."}), 400
+
+        products = []
+        for service_name, price in pricing_info.items():
+            if service_name != "turf_sq_ft":
+                product = stripe.Product.create(name=service_name)
+                price_data = stripe.Price.create(
+                    unit_amount=int(price * 100),  # Stripe expects the price in cents
+                    currency="usd",
+                    product=product.id
+                )
+                products.append({"name": service_name, "price_id": price_data.id})
+
+        return jsonify({"products": products}), 200
+    except Exception as e:
+        logging.error(f"Error in create-products: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
