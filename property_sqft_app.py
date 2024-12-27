@@ -21,15 +21,14 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://pricing.greenlawnaugusta.com/home-page"]}})
-
+CORS(app, resources={r"/*": {"origins": ["https://pricing.greenlawnaugusta.com"]}}, supports_credentials=True)
 
 @app.route('/create-products', methods=['POST', 'OPTIONS'])
 def create_products():
     """Handle product creation in Stripe."""
     if request.method == 'OPTIONS':
         response = jsonify({'message': 'CORS preflight handled'})
-        response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
+        response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -58,6 +57,7 @@ def create_products():
     except Exception as e:
         logging.error(f"Error in create-products: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
