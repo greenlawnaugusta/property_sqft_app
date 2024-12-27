@@ -21,7 +21,7 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com", "https://pricing.greenlawnaugusta.com"]}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": ["https://pricing.greenlawnaugusta.com/home-page"]}}, supports_credentials=True)
 
 @app.route('/create-products', methods=['POST', 'OPTIONS'])
 def create_products():
