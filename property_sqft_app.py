@@ -21,7 +21,7 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com"]}})
 
 @app.after_request
 def after_request(response):
