@@ -23,6 +23,12 @@ stripe.api_key = STRIPE_SECRET_KEY
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    return response
+
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
     try:
