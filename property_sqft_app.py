@@ -21,7 +21,7 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
