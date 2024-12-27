@@ -19,11 +19,6 @@ STRIPE_SECRET_KEY = 'sk_live_51OPSgJBjzAiuXy5VgOFG9k7QpI1SrLfP8yfv3kAPE1Nb7oZdwn
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-from flask_cors import CORS
-
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-
 # Create Flask app
 app = Flask(__name__)
 
