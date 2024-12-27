@@ -21,17 +21,36 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 from flask_cors import CORS
 
-# Correct Flask-CORS setup
-CORS(app, resources={r"/*": {"origins": "https://api.leadconnectorhq.com"}}, supports_credentials=True)
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
-# Remove manual CORS header addition in `after_request`
+# Create Flask app
+app = Flask(__name__)
+
+# Configure CORS for specific origin
+CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com"]}})
+
+# Add additional headers to all responses
 @app.after_request
 def after_request(response):
-    # Do NOT set Access-Control-Allow-Origin again if Flask-CORS is used
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
     return response
+
+# Handle preflight OPTIONS requests explicitly
+@app.route('/create-products', methods=['OPTIONS'])
+def handle_options():
+    """Handle CORS preflight requests for /create-products"""
+    response = jsonify({'message': 'CORS preflight handled'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
+    response.status_code = 200  # HTTP 200 OK
+    return response
+
 
 # Handle preflight OPTIONS requests explicitly
 @app.route('/create-products', methods=['OPTIONS'])
