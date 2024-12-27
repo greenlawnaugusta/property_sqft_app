@@ -21,12 +21,29 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
+
+# Configure CORS for specific origin
 CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com"]}})
 
+# Add additional headers to all responses
 @app.after_request
 def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
+    return response
+
+# Handle preflight OPTIONS requests explicitly
+@app.route('/create-products', methods=['OPTIONS'])
+def handle_options():
+    """Handle CORS preflight requests for /create-products"""
+    response = jsonify({'message': 'CORS preflight handled'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
+    response.status_code = 200  # HTTP 200 OK
     return response
 
 # Function to get latitude and longitude using Google Maps API
