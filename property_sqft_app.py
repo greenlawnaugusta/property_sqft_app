@@ -19,47 +19,45 @@ STRIPE_SECRET_KEY = 'sk_live_51OPSgJBjzAiuXy5VgOFG9k7QpI1SrLfP8yfv3kAPE1Nb7oZdwn
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-# Correct Flask-CORS setup
-CORS(app, resources={r"/*": {"origins": "https://api.leadconnectorhq.com"}}, supports_credentials=True)
+# Create Flask app
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": ["https://pricing.greenlawnaugusta.com"]}}, supports_credentials=True)
 
-# Remove manual CORS header addition in after_request
-@app.after_request
-def after_request(response):
-    # Do NOT set Access-Control-Allow-Origin again if Flask-CORS is used
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
+@app.route('/create-products', methods=['POST', 'OPTIONS'])
+def create_products():
+    """Handle product creation in Stripe."""
+    if request.method == 'OPTIONS':
+        response = jsonify({'message': 'CORS preflight handled'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.status_code = 200
+        return response
 
-# Handle preflight OPTIONS requests explicitly
-@app.route('/create-products', methods=['OPTIONS'])
-def handle_options():
-    """Handle CORS preflight requests for /create-products"""
-    response = jsonify({'message': 'CORS preflight handled'})
-    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
-    response.status_code = 200  # HTTP 200 OK
-    return response
-
-# Function to get latitude and longitude using Google Maps API
-def get_lat_lon(address):
     try:
-        geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}'
-        response = requests.get(geocoding_endpoint)
-        if response.status_code == 200:
-            geocode_data = response.json()
-            if geocode_data['status'] == 'OK':
-                location = geocode_data['results'][0]['geometry']['location']
-                return location['lat'], location['lng']
-            else:
-                logging.warning(f"Geocoding failed for address: {address}. Error: {geocode_data.get('error_message', geocode_data['status'])}")
-        else:
-            logging.error(f"HTTP error fetching geocode data. Status code: {response.status_code}")
+        data = request.json
+        pricing_info = data.get('pricing_info')
+
+        if not pricing_info:
+            return jsonify({"error": "Missing pricing info."}), 400
+
+        products = []
+        for service_name, price in pricing_info.items():
+            if service_name != "turf_sq_ft":
+                product = stripe.Product.create(name=service_name)
+                price_data = stripe.Price.create(
+                    unit_amount=int(price * 100),  # Stripe expects the price in cents
+                    currency="usd",
+                    product=product.id
+                )
+                products.append({"name": service_name, "price_id": price_data.id})
+
+        return jsonify({"products": products}), 200
     except Exception as e:
-        logging.error(f"Exception during geocoding: {str(e)}")
-    return None, None
+        logging.error(f"Error in create-products: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 # Function to calculate turf area using Mapbox satellite imagery
 def calculate_turf_area(lat, lon):
