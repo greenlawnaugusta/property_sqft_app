@@ -21,29 +21,87 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com", "https://pricing.greenlawnaugusta.com"]}}, supports_credentials=True)
 
-# Configure CORS for specific origin
-CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com"]}}, supports_credentials=True)
+@app.route('/create-products', methods=['POST', 'OPTIONS'])
+def create_products():
+    """Handle product creation in Stripe."""
+    if request.method == 'OPTIONS':
+        response = jsonify({'message': 'CORS preflight handled'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.status_code = 200
+        return response
 
-# Add additional headers to all responses
-@app.after_request
-def after_request(response):
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
+    try:
+        data = request.json
+        pricing_info = data.get('pricing_info')
 
-# Handle preflight OPTIONS requests explicitly
-@app.route('/create-products', methods=['OPTIONS'])
-def handle_options():
-    """Handle CORS preflight requests for /create-products"""
-    response = jsonify({'message': 'CORS preflight handled'})
-    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
-    response.status_code = 200  # HTTP 200 OK
-    return response
+        if not pricing_info:
+            return jsonify({"error": "Missing pricing info."}), 400
+
+        products = []
+        for service_name, price in pricing_info.items():
+            if service_name != "turf_sq_ft":
+                product = stripe.Product.create(name=service_name)
+                price_data = stripe.Price.create(
+                    unit_amount=int(price * 100),  # Stripe expects the price in cents
+                    currency="usd",
+                    product=product.id
+                )
+                products.append({"name": service_name, "price_id": price_data.id})
+
+        return jsonify({"products": products}), 200
+    except Exception as e:
+        logging.error(f"Error in create-products: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Function to calculate pricing
+def calculate_pricing(turf_sq_ft):
+    base_price = 50 if turf_sq_ft <= 4000 else 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
+    return {
+        "recurring_maintenance_biweekly_price": base_price,
+        "recurring_maintenance_weekly_price": base_price * 0.75,
+        "one_time_mow_price": base_price * 1.15,
+        "full_service_biweekly_price": base_price * 1.25,
+        "full_service_weekly_price": base_price * 1.25 * 0.90,
+        "weed_control_1_price": base_price * 1.1,
+        "weed_control_2_price": base_price * 1.15,
+        "weed_control_3_price": base_price * 1.2,
+        "turf_sq_ft": turf_sq_ft,
+    }
+
+# Pricing Calculation Endpoint
+@app.route('/calculate-prices', methods=['POST', 'OPTIONS'])
+def calculate_prices():
+    if request.method == 'OPTIONS':
+        response = jsonify({'message': 'CORS preflight handled'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.status_code = 200
+        return response
+
+    try:
+        data = request.json
+        turf_sq_ft = data.get('turf_sq_ft')
+
+        if not turf_sq_ft:
+            return jsonify({"error": "Turf square footage is required."}), 400
+
+        pricing_info = calculate_pricing(turf_sq_ft)
+        services = [
+            {"name": service_name, "price": price, "price_id": f"mock_price_{service_name}"}
+            for service_name, price in pricing_info.items() if service_name != "turf_sq_ft"
+        ]
+
+        return jsonify({"services": services}), 200
+    except Exception as e:
+        logging.error(f"Error in calculate-prices: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # Function to get latitude and longitude using Google Maps API
 def get_lat_lon(address):
@@ -99,141 +157,3 @@ def calculate_turf_area(lat, lon):
     except Exception as e:
         logging.error(f"Error calculating turf area: {str(e)}")
         return str(e)
-
-# Function to calculate pricing
-def calculate_pricing(turf_sq_ft):
-    base_price = 50 if turf_sq_ft <= 4000 else 50 + np.ceil((turf_sq_ft - 4000) / 100) * 1.3
-    return {
-        "recurring_maintenance_biweekly_price": base_price,
-        "recurring_maintenance_weekly_price": base_price * 0.75,
-        "one_time_mow_price": base_price * 1.15,
-        "full_service_biweekly_price": base_price * 1.25,
-        "full_service_weekly_price": base_price * 1.25 * 0.90,
-        "weed_control_1_price": base_price * 1.1,
-        "weed_control_2_price": base_price * 1.15,
-        "weed_control_3_price": base_price * 1.2,
-        "turf_sq_ft": turf_sq_ft,
-    }
-
-# Function to create/update GoHighLevel contact
-def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info):
-    try:
-        url = "https://rest.gohighlevel.com/v1/contacts/"
-        headers = {
-            "Authorization": f"Bearer {gohighlevel_api_key}",
-            "Content-Type": "application/json"
-        }
-        contact_data = {
-            "firstName": first_name,
-            "lastName": last_name,
-            "email": email,
-            "phone": phone,
-            "address1": address,
-            "latitude": lat,
-            "longitude": lon,
-            "customField": {
-                "recurring_maintenance_biweekly_price": pricing_info.get("recurring_maintenance_biweekly_price"),
-                "recurring_maintenance_weekly_price": pricing_info.get("recurring_maintenance_weekly_price"),
-                "one_time_mow_price": pricing_info.get("one_time_mow_price"),
-                "full_service_biweekly_price": pricing_info.get("full_service_biweekly_price"),
-                "full_service_weekly_price": pricing_info.get("full_service_weekly_price"),
-                "weed_control_1_price": pricing_info.get("weed_control_1_price"),
-                "weed_control_2_price": pricing_info.get("weed_control_2_price"),
-                "weed_control_3_price": pricing_info.get("weed_control_3_price"),
-                "turf_sq_ft": pricing_info.get("turf_sq_ft"),
-            }
-        }
-        response = requests.post(url, headers=headers, json=contact_data)
-        if response.status_code in [200, 201]:
-            contact = response.json()
-            logging.info("Successfully created/updated contact.")
-            return contact.get("contact", {}).get("id")
-        else:
-            logging.error(f"Error creating/updating contact: {response.status_code} - {response.text}")
-            return None
-    except Exception as e:
-        logging.error(f"Error in GoHighLevel API: {str(e)}")
-        return None
-
-# Function to create products in Stripe
-def create_stripe_products(pricing_info):
-    try:
-        products = []
-        for service_name, price in pricing_info.items():
-            if service_name != "turf_sq_ft":
-                product = stripe.Product.create(name=service_name)
-                price_data = stripe.Price.create(
-                    unit_amount=int(price * 100),  # Stripe expects the price in cents
-                    currency="usd",
-                    product=product.id
-                )
-                products.append({"name": service_name, "price_id": price_data.id})
-        return products
-    except Exception as e:
-        logging.error(f"Error creating Stripe products: {str(e)}")
-        return []
-
-# Pricing Calculation Endpoint
-@app.route('/calculate', methods=['POST'])
-def calculate():
-    try:
-        data = request.json if request.content_type == 'application/json' else request.form
-        address = data.get('address')
-        first_name = data.get('first_name')
-        last_name = data.get('last_name')
-        email = data.get('email')
-        phone = data.get('phone')
-
-        if not all([address, first_name, last_name, email, phone]):
-            return jsonify({"error": "All fields are required."}), 400
-
-        lat, lon = get_lat_lon(address)
-        if lat is None or lon is None:
-            return jsonify({"error": "Geocoding failed for the provided address."}), 400
-
-        turf_sq_ft = calculate_turf_area(lat, lon)
-        if isinstance(turf_sq_ft, str):
-            return jsonify({"error": turf_sq_ft}), 400
-
-        pricing_info = calculate_pricing(turf_sq_ft)
-        contact_id = create_or_update_gohighlevel_contact(first_name, last_name, email, phone, address, lat, lon, pricing_info)
-
-        if not contact_id:
-            return jsonify({"error": "Failed to create or update contact in GoHighLevel."}), 500
-
-        stripe_products = create_stripe_products(pricing_info)
-
-        return jsonify({
-            "turf_sq_ft": turf_sq_ft,
-            "pricing_info": pricing_info,
-            "contact_id": contact_id,
-            "stripe_products": stripe_products
-        })
-    except Exception as e:
-        logging.error(f"Error processing request: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/create-checkout-session', methods=['POST'])
-def create_checkout_session():
-    try:
-        data = request.json
-        selected_price_id = data.get('price_id')
-
-        if not selected_price_id:
-            return jsonify({"error": "Price ID is required."}), 400
-
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price': selected_price_id,
-                'quantity': 1,
-            }],
-            mode='payment',
-            success_url='https://yourdomain.com/success',
-            cancel_url='https://yourdomain.com/cancel',
-        )
-
-        return jsonify({"session_id": session.id})
-    except Exception as e:
-        logging.error(f"Error creating checkout session: {str(e)}")
-        return jsonify({"error": str(e)}), 500
