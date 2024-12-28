@@ -21,40 +21,17 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://pricing.greenlawnaugusta.com"]}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://pricing.greenlawnaugusta.com')
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers.add('Access-Control-Allow-Origin', origin)
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
-
-@app.route('/create-products', methods=['POST', 'OPTIONS'])
-def create_products():
-    try:
-        data = request.json
-        pricing_info = data.get('pricing_info')
-
-        if not pricing_info:
-            return jsonify({"error": "Missing pricing info."}), 400
-
-        products = []
-        for service_name, price in pricing_info.items():
-            if service_name != "turf_sq_ft":
-                product = stripe.Product.create(name=service_name)
-                price_data = stripe.Price.create(
-                    unit_amount=int(price * 100),  # Stripe expects the price in cents
-                    currency="usd",
-                    product=product.id
-                )
-                products.append({"name": service_name, "price_id": price_data.id})
-
-        return jsonify({"products": products}), 200
-    except Exception as e:
-        logging.error(f"Error in create-products: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 # Function to calculate turf area using Mapbox satellite imagery
 def calculate_turf_area(lat, lon):
@@ -148,7 +125,7 @@ def create_or_update_gohighlevel_contact(first_name, last_name, email, phone, ad
         logging.error(f"Error in GoHighLevel API: {str(e)}")
         return None
 
-# Function to create products in Stripe
+# Function to create Stripe products
 def create_stripe_products(pricing_info):
     try:
         products = []
@@ -172,7 +149,7 @@ def calculate():
         if request.method == 'OPTIONS':
             return add_cors_headers(jsonify({'message': 'CORS preflight handled'}))
 
-        data = request.json if request.content_type == 'application/json' else request.form
+        data = request.json
         address = data.get('address')
         first_name = data.get('first_name')
         last_name = data.get('last_name')
@@ -229,8 +206,8 @@ def create_checkout_session():
                 'quantity': 1,
             }],
             mode='payment',
-            success_url='https://yourdomain.com/success',
-            cancel_url='https://yourdomain.com/cancel',
+            success_url='https://pricing.greenlawnaugusta.com/success',
+            cancel_url='https://pricing.greenlawnaugusta.com/cancel',
         )
 
         response = jsonify({"session_id": session.id})
