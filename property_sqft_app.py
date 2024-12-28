@@ -21,40 +21,47 @@ stripe.api_key = STRIPE_SECRET_KEY
 
 # Create Flask app
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://pricing.greenlawnaugusta.com"]}}, supports_credentials=True)
 
+# Configure CORS for specific origin
+CORS(app, resources={r"/*": {"origins": ["https://api.leadconnectorhq.com"]}}, supports_credentials=True)
+
+# Add additional headers to all responses
 @app.after_request
-def add_cors_headers(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://pricing.greenlawnaugusta.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
+def after_request(response):
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
-@app.route('/create-products', methods=['POST', 'OPTIONS'])
-def create_products():
+# Handle preflight OPTIONS requests explicitly
+@app.route('/create-products', methods=['OPTIONS'])
+def handle_options():
+    """Handle CORS preflight requests for /create-products"""
+    response = jsonify({'message': 'CORS preflight handled'})
+    response.headers.add('Access-Control-Allow-Origin', 'https://api.leadconnectorhq.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')  # If credentials are required
+    response.status_code = 200  # HTTP 200 OK
+    return response
+
+# Function to get latitude and longitude using Google Maps API
+def get_lat_lon(address):
     try:
-        data = request.json
-        pricing_info = data.get('pricing_info')
-
-        if not pricing_info:
-            return jsonify({"error": "Missing pricing info."}), 400
-
-        products = []
-        for service_name, price in pricing_info.items():
-            if service_name != "turf_sq_ft":
-                product = stripe.Product.create(name=service_name)
-                price_data = stripe.Price.create(
-                    unit_amount=int(price * 100),  # Stripe expects the price in cents
-                    currency="usd",
-                    product=product.id
-                )
-                products.append({"name": service_name, "price_id": price_data.id})
-
-        return jsonify({"products": products}), 200
+        geocoding_endpoint = f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}'
+        response = requests.get(geocoding_endpoint)
+        if response.status_code == 200:
+            geocode_data = response.json()
+            if geocode_data['status'] == 'OK':
+                location = geocode_data['results'][0]['geometry']['location']
+                return location['lat'], location['lng']
+            else:
+                logging.warning(f"Geocoding failed for address: {address}. Error: {geocode_data.get('error_message', geocode_data['status'])}")
+        else:
+            logging.error(f"HTTP error fetching geocode data. Status code: {response.status_code}")
     except Exception as e:
-        logging.error(f"Error in create-products: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Exception during geocoding: {str(e)}")
+    return None, None
 
 # Function to calculate turf area using Mapbox satellite imagery
 def calculate_turf_area(lat, lon):
@@ -166,12 +173,10 @@ def create_stripe_products(pricing_info):
         logging.error(f"Error creating Stripe products: {str(e)}")
         return []
 
-@app.route('/calculate', methods=['POST', 'OPTIONS'])
+# Pricing Calculation Endpoint
+@app.route('/calculate', methods=['POST'])
 def calculate():
     try:
-        if request.method == 'OPTIONS':
-            return add_cors_headers(jsonify({'message': 'CORS preflight handled'}))
-
         data = request.json if request.content_type == 'application/json' else request.form
         address = data.get('address')
         first_name = data.get('first_name')
@@ -198,24 +203,19 @@ def calculate():
 
         stripe_products = create_stripe_products(pricing_info)
 
-        response = jsonify({
+        return jsonify({
             "turf_sq_ft": turf_sq_ft,
             "pricing_info": pricing_info,
             "contact_id": contact_id,
             "stripe_products": stripe_products
         })
-        return add_cors_headers(response)
     except Exception as e:
         logging.error(f"Error processing request: {str(e)}")
-        response = jsonify({"error": str(e)})
-        return add_cors_headers(response), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/create-checkout-session', methods=['POST', 'OPTIONS'])
+@app.route('/create-checkout-session', methods=['POST'])
 def create_checkout_session():
     try:
-        if request.method == 'OPTIONS':
-            return add_cors_headers(jsonify({'message': 'CORS preflight handled'}))
-
         data = request.json
         selected_price_id = data.get('price_id')
 
@@ -233,27 +233,7 @@ def create_checkout_session():
             cancel_url='https://yourdomain.com/cancel',
         )
 
-        response = jsonify({"session_id": session.id})
-        return add_cors_headers(response)
+        return jsonify({"session_id": session.id})
     except Exception as e:
         logging.error(f"Error creating checkout session: {str(e)}")
-        response = jsonify({"error": str(e)})
-        return add_cors_headers(response), 500
-
-# Helper function to get latitude and longitude
-def get_lat_lon(address):
-    try:
-        geocoding_endpoint = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={google_maps_api_key}"
-        response = requests.get(geocoding_endpoint)
-        if response.status_code == 200:
-            geocode_data = response.json()
-            if geocode_data['status'] == 'OK':
-                location = geocode_data['results'][0]['geometry']['location']
-                return location['lat'], location['lng']
-            else:
-                logging.warning(f"Geocoding failed for address: {address}. Error: {geocode_data.get('error_message', geocode_data['status'])}")
-        else:
-            logging.error(f"HTTP error fetching geocode data. Status code: {response.status_code}")
-    except Exception as e:
-        logging.error(f"Exception during geocoding: {str(e)}")
-    return None, None
+        return jsonify({"error": str(e)}), 500
